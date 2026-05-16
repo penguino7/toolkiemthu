@@ -1,0 +1,3 @@
+# Core tool uses Python standard library only.
+# Optional dynamic crawler:
+playwright>=1.40.0

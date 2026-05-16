@@ -1,0 +1,11 @@
+# Manual seed file.
+# Format 1: URL only, default method GET
+# Format 2: METHOD URL BODY
+
+GET http://127.0.0.1:8080/search.php?q=test
+GET http://127.0.0.1:8080/news.php?id=1
+GET http://127.0.0.1:8080/api/spa/search.php?q=test
+GET http://127.0.0.1:8080/api/spa/news.php?id=1
+GET http://127.0.0.1:8080/api/spa/comments.php?news_id=1
+GET http://127.0.0.1:8080/api/spa/logs.php?keyword=test
+POST http://127.0.0.1:8080/api/spa/comment_add.php news_id=1&author_name=manual&content=hello

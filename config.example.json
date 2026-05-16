@@ -1,0 +1,42 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "auth_context": "anonymous",
+  "headers": {
+    "User-Agent": "ReconTool/0.1"
+  },
+  "scope": {
+    "include_hosts": ["127.0.0.1", "localhost"],
+    "exclude_paths": ["/user/logout.php"]
+  },
+  "seeds": [
+    "/",
+    "/search.php?q=test",
+    "/news.php?id=1",
+    "/category.php?id=1",
+    "/spa/search",
+    "/spa/article/1",
+    "/spa/comments/1",
+    "/spa/logs"
+  ],
+  "static": {
+    "enabled": true,
+    "max_pages": 80,
+    "max_depth": 3,
+    "timeout_seconds": 10
+  },
+  "dynamic": {
+    "enabled": false,
+    "max_pages": 30,
+    "timeout_ms": 15000,
+    "headless": true,
+    "storage_state": ""
+  },
+  "imports": {
+    "har_files": [],
+    "manual_seed_files": ["seeds.example.txt"]
+  },
+  "dedupe": {
+    "mode": "smart"
+  },
+  "output_dir": "recon-output"
+}
