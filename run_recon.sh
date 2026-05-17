@@ -21,12 +21,12 @@ Examples:
   ./run_recon.sh http://127.0.0.1:8080 --out recon-newshub
 
 Options:
-  --dynamic              Bật Playwright dynamic crawler.
-  --install-playwright   Tự cài Python package và Chromium cho Playwright.
-  --out DIR              Thư mục output.
+  --dynamic              Bat Playwright dynamic crawler.
+  --install-playwright   Tu cai Python package va Chromium cho Playwright.
+  --out DIR              Thu muc output.
   --config FILE          File config JSON.
-  --no-static            Tắt static crawler.
-  --help                 Hiện hướng dẫn.
+  --no-static            Tat static crawler.
+  --help                 Hien huong dan.
 EOF
 }
 
@@ -107,3 +107,4 @@ echo "[+] Done"
 echo "[+] JSON:     $OUTPUT_DIR/inventory.json"
 echo "[+] Markdown: $OUTPUT_DIR/inventory.md"
 echo "[+] Params:   $OUTPUT_DIR/params.txt"
+echo "[+] Plan:     $OUTPUT_DIR/test_plan.md"

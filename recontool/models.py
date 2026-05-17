@@ -18,6 +18,13 @@ def _unique(values: List[Any]) -> List[Any]:
 
 @dataclass
 class Param:
+    """Đại diện cho một tham số của endpoint.
+
+    `location` cho biết tham số nằm ở đâu: query, body hoặc json.
+    `sample_values` là giá trị đã quan sát được khi crawl/import, không phải
+    giá trị tool tự sinh để kiểm thử.
+    """
+
     name: str
     location: str
     type_hint: str = "string"
@@ -57,6 +64,12 @@ class Param:
 
 @dataclass
 class EndpointRecord:
+    """Một endpoint đã được chuẩn hóa.
+
+    Đây là object trung tâm của tool. Mọi crawler/importer đều tạo ra
+    EndpointRecord để các bước enrich, dedupe và export xử lý thống nhất.
+    """
+
     method: str
     url: str
     scheme: str

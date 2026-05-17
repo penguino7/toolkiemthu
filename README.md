@@ -1,215 +1,192 @@
 # Tool Recon Kiểm Thử Web
 
-Đây là tool recon tổng quát để thu thập endpoint, form, tham số URL/body/JSON và chuẩn hóa tất cả về một schema chung. Tool không hardcode theo một website cụ thể, có thể dùng cho NewsHub lab hoặc các web khác nếu cấu hình đúng `base_url`, `scope` và `seeds`.
+Tool này chỉ tập trung vào **recon web**: thu thập endpoint, form, URL param, body param, JSON param, request SPA/API và chuẩn hóa chúng về một schema chung. Tool không scan tự động, không gửi giá trị kiểm thử và không cố chứng minh lỗ hổng.
 
-## Ý Tưởng
-
-Tool đi theo pipeline:
+Code đã được tổ chức lại theo OOP để dễ đọc hơn:
 
 ```text
-static crawler
-playwright dynamic crawler
-HAR importer
-manual seed importer
-        ↓
-normalize
-        ↓
-enrich
-        ↓
-dedupe
-        ↓
-export inventory
+crawl/import -> normalize -> enrich metadata -> dedupe -> export
 ```
 
-Mục tiêu là gom dữ liệu từ nhiều nguồn nhưng xuất ra cùng một dạng:
+## Chức Năng Chính
+
+### Static Crawl
+
+Đọc HTML không chạy JavaScript để lấy:
 
 ```text
-inventory.json
-inventory.md
-params.txt
+link <a href>
+form action/method
+input/textarea/select name
+URL param
+status code
+response content-type
 ```
+
+### Dynamic Crawl Cho SPA
+
+Dùng Playwright để chạy browser thật và bắt request do JavaScript sinh ra:
+
+```text
+route SPA
+fetch/XHR API endpoint
+POST body nếu browser gửi
+JSON response content-type
+status code
+```
+
+Ví dụ browser vào:
+
+```text
+/spa/search?q=AI
+```
+
+nhưng JavaScript gọi:
+
+```text
+GET /api/spa/search.php?q=AI
+```
+
+thì dynamic crawler có thể ghi nhận API này.
+
+### Auth Profile
+
+Hỗ trợ crawl theo context:
+
+```text
+anonymous
+admin
+user
+```
+
+Nếu cấu hình form login, tool đăng nhập để nhìn thấy endpoint sau đăng nhập. Đây vẫn là recon, không phải kiểm thử lỗ hổng.
+
+### Normalize, Enrich, Dedupe
+
+Mọi dữ liệu được đưa về `EndpointRecord`, sau đó:
+
+```text
+normalize   chuẩn hóa URL, param, body, JSON, content-type
+enrich      gắn nhãn candidate như sqli/reflected_xss_candidate
+dedupe      gom endpoint trùng
+export      sinh inventory và test_plan
+```
+
+`candidate_tests` chỉ là gợi ý recon, không phải kết luận có lỗ hổng.
 
 ## Cấu Trúc File
 
 ```text
 .
 ├── README.md
-├── requirements.txt
 ├── config.example.json
+├── requirements.txt
+├── run_recon.sh
 ├── seeds.example.txt
 └── recontool/
     ├── __main__.py
+    ├── auth.py
     ├── cli.py
     ├── config.py
-    ├── models.py
-    ├── normalizer.py
-    ├── enrich.py
     ├── dedupe.py
+    ├── enrich.py
     ├── exporters.py
     ├── http_client.py
+    ├── models.py
+    ├── normalizer.py
     ├── scope.py
     ├── crawlers/
-    │   ├── static_html.py
-    │   └── playwright_dynamic.py
+    │   ├── playwright_dynamic.py
+    │   └── static_html.py
     └── importers/
         ├── har.py
         └── manual_seed.py
 ```
 
-## Tính Năng Hiện Có
+## Class Chính Theo Từng File
 
-### Static HTML crawler
+`cli.py`
 
-Không chạy JavaScript. Dùng để lấy:
+- `CliArgumentParser`: tạo command-line options.
+- `ReconApplication`: điều phối toàn pipeline từ load config đến export.
 
-```text
-link <a href>
-form action/method
-input name
-textarea name
-select name
-query params
-status code
-response content-type
-```
+`config.py`
 
-### Playwright dynamic crawler
+- `ConfigLoader`: đọc `config.example.json` và merge với config mặc định.
 
-Chạy browser thật, phù hợp SPA. Dùng để lấy:
+`models.py`
 
-```text
-fetch/XHR API
-route SPA
-request sinh ra bởi JavaScript
-status code
-response content-type
-POST body
-JSON body
-```
+- `Param`: mô tả một tham số như `query:q`, `body:content`, `json:user.id`.
+- `EndpointRecord`: object trung tâm đại diện cho một endpoint đã chuẩn hóa.
 
-Phần này là tùy chọn. Nếu chưa cài Playwright, tool vẫn chạy static/importer bình thường.
+`normalizer.py`
 
-### HAR importer
+- `ReconNormalizer`: chuẩn hóa URL, suy luận type, parse query/body/JSON và tạo `EndpointRecord`.
 
-Đọc file `.har` export từ:
+`scope.py`
 
-```text
-Chrome DevTools
-Firefox DevTools
-Playwright
-ZAP
-proxy khác có hỗ trợ HAR
-```
+- `ScopePolicy`: quyết định URL nào được phép crawl theo `include_hosts` và `exclude_paths`.
 
-### Manual seed importer
+`http_client.py`
 
-Đọc danh sách endpoint do bạn tự viết trong file text hoặc JSON. Hữu ích khi crawler không tự thấy endpoint ẩn.
+- `HttpResult`: kết quả HTTP rút gọn.
+- `ResponseDecoder`: giải mã response text theo content-type.
+- `HttpSession`: HTTP client có cookie jar, dùng cho static crawl và auth.
 
-### Normalize
+`auth.py`
 
-Chuẩn hóa request về schema chung:
+- `AuthManager`: chọn auth profile, tạo session và login form cơ bản.
 
-```text
-method
-url
-scheme
-host
-port
-path
-canonical_path
-query params
-body params
-json params
-auth_context
-content-type
-status
-source_tool
-```
+`crawlers/static_html.py`
 
-### Enrich
+- `HtmlDiscoveryParser`: parse link/form/input từ HTML.
+- `StaticHtmlCrawler`: crawl HTML tĩnh và tạo `EndpointRecord`.
 
-Suy luận candidate test:
+`crawlers/playwright_dynamic.py`
 
-```text
-sqli
-sqli_json
-reflected_xss_candidate
-stored_xss_candidate
-api_xss_source
-form_endpoint
-```
+- `DynamicCrawler`: chạy Playwright, bắt request/response SPA/API và tạo `EndpointRecord`.
 
-### Dedupe
+`importers/manual_seed.py`
 
-Gom endpoint trùng bằng fingerprint:
+- `ManualSeedImporter`: đọc endpoint do bạn tự ghi trong file text/JSON.
 
-```text
-method + host + canonical_path + query param names + body param names + content-type + auth_context
-```
+`importers/har.py`
 
-Ví dụ:
+- `HarImporter`: đọc HAR file và chuyển request thành `EndpointRecord`.
 
-```text
-GET /news.php?id=1
-GET /news.php?id=2
-```
+`enrich.py`
 
-được gom thành:
+- `RecordEnricher`: gắn nhãn candidate XSS/SQLi dựa trên metadata đã quan sát được.
 
-```text
-GET /news.php?id={int}
-```
+`dedupe.py`
 
-## Cài Đặt
+- `EndpointDeduplicator`: gom endpoint trùng theo fingerprint.
 
-Tool core dùng Python standard library. Cần Python 3.11+.
+`exporters.py`
 
-Kiểm tra:
+- `ReconExporter`: xuất `inventory.json`, `inventory.md`, `params.txt`, `test_plan.md`.
 
-```bash
-python --version
-```
+## Chạy Trên Kali/Linux
 
-Nếu muốn dùng Playwright dynamic crawler:
-
-```bash
-pip install -r requirements.txt
-python -m playwright install chromium
-```
-
-Nếu chỉ dùng static crawler, manual seed và HAR importer thì không cần cài thêm package.
-
-Nếu trên Windows gặp lỗi quyền với `__pycache__`, xóa thư mục cache rồi chạy lại:
-
-```powershell
-Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
-```
-
-## Chạy Nhanh Với NewsHub Lab
-
-Giả sử NewsHub đang chạy tại:
+Giả sử lab chạy tại:
 
 ```text
 http://127.0.0.1:8080
 ```
 
-### Cách khuyến nghị: chạy một lệnh
-
-Trên Kali/Linux:
+Chạy recon tĩnh:
 
 ```bash
 bash run_recon.sh http://127.0.0.1:8080
 ```
 
-Lệnh trên sẽ tự tạo `.venv` nếu chưa có, đọc `config.example.json`, chạy crawler/importer, dedupe/enrich và xuất kết quả.
-
-Nếu muốn bật dynamic crawler cho SPA:
+Chạy thêm dynamic crawler cho SPA/API:
 
 ```bash
 bash run_recon.sh http://127.0.0.1:8080 --dynamic
 ```
 
-Nếu Kali chưa cài Playwright:
+Cài Playwright nếu Kali chưa có:
 
 ```bash
 bash run_recon.sh http://127.0.0.1:8080 --dynamic --install-playwright
@@ -221,114 +198,18 @@ bash run_recon.sh http://127.0.0.1:8080 --dynamic --install-playwright
 bash run_recon.sh http://127.0.0.1:8080 --out recon-newshub
 ```
 
-Trên Windows PowerShell:
-
-```powershell
-.\run_recon.ps1 -BaseUrl http://127.0.0.1:8080
-```
-
-### Cách chạy trực tiếp bằng Python
-
-```bash
-python -B -m recontool -c config.example.json
-```
-
-Output:
+## Output
 
 ```text
-recon-output/inventory.json
-recon-output/inventory.md
-recon-output/params.txt
+inventory.json  dữ liệu đầy đủ cho tool khác đọc tiếp
+inventory.md    bảng endpoint dễ đọc
+params.txt      danh sách param ngắn gọn
+test_plan.md    nhóm candidate XSS/SQLi để test thủ công sau
 ```
 
-## Chạy Static Crawler
+## Cấu Hình Quan Trọng
 
-```bash
-python -m recontool \
-  --base-url http://127.0.0.1:8080 \
-  --seed / \
-  --seed /search.php?q=test \
-  --seed /spa/search \
-  --out recon-output
-```
-
-Trên PowerShell có thể viết một dòng:
-
-```powershell
-python -m recontool --base-url http://127.0.0.1:8080 --seed / --seed /search.php?q=test --seed /spa/search --out recon-output
-```
-
-## Chạy Playwright Dynamic Crawler
-
-Bật trong config:
-
-```json
-"dynamic": {
-  "enabled": true,
-  "max_pages": 30,
-  "timeout_ms": 15000,
-  "headless": true,
-  "storage_state": ""
-}
-```
-
-Hoặc bật bằng CLI:
-
-```bash
-python -m recontool -c config.example.json --dynamic
-```
-
-Dynamic crawler sẽ mở browser thật, vào seed URL, bắt request/response sinh ra bởi JavaScript rồi normalize thành endpoint record.
-
-## Import HAR
-
-Export HAR từ DevTools hoặc proxy, sau đó:
-
-```bash
-python -m recontool \
-  --base-url http://127.0.0.1:8080 \
-  --har traffic.har \
-  --no-static
-```
-
-Hoặc cấu hình trong `config.example.json`:
-
-```json
-"imports": {
-  "har_files": ["traffic.har"],
-  "manual_seed_files": []
-}
-```
-
-## Import Manual Seed
-
-File text:
-
-```text
-GET http://127.0.0.1:8080/search.php?q=test
-GET http://127.0.0.1:8080/api/spa/news.php?id=1
-POST http://127.0.0.1:8080/api/spa/comment_add.php news_id=1&author_name=manual&content=hello
-```
-
-Chạy:
-
-```bash
-python -m recontool --manual seeds.example.txt --no-static
-```
-
-## Config Quan Trọng
-
-### base_url
-
-Target chính:
-
-```json
-"base_url": "http://127.0.0.1:8080"
-```
-
-### scope
-
-Giới hạn host/path được crawl:
+### Scope
 
 ```json
 "scope": {
@@ -337,135 +218,101 @@ Giới hạn host/path được crawl:
 }
 ```
 
-### seeds
-
-URL khởi đầu:
+### Seeds
 
 ```json
 "seeds": [
   "/",
   "/search.php?q=test",
-  "/spa/search"
+  "/news.php?id=1",
+  "/spa/search",
+  "/spa/article/1"
 ]
 ```
 
-### auth_context
+### Auth Profiles
 
-Đánh dấu context:
-
-```json
-"auth_context": "anonymous"
-```
-
-Khi crawl bằng session admin, đổi thành:
+Mặc định chỉ crawl anonymous:
 
 ```json
-"auth_context": "admin"
+"auth_profiles": [
+  {
+    "name": "anonymous",
+    "type": "none",
+    "enabled": true
+  }
+]
 ```
 
-## Authenticated Crawl
-
-Bản hiện tại chưa tự login form. Có 2 cách thực tế:
-
-### Cách 1: Playwright storage_state
-
-Tạo storage state bằng Playwright riêng, rồi cấu hình:
-
-```json
-"dynamic": {
-  "enabled": true,
-  "storage_state": "admin-state.json"
-}
-```
-
-### Cách 2: Dùng HAR/Burp/ZAP
-
-Đăng nhập thủ công bằng browser/proxy, export HAR hoặc traffic history, rồi import vào tool.
-
-## Output Schema Rút Gọn
-
-Mỗi endpoint record có dạng:
+Nếu muốn recon sau đăng nhập, bật profile admin và sửa đúng thông tin form:
 
 ```json
 {
-  "method": "GET",
-  "url": "http://127.0.0.1:8080/search.php?q=test",
-  "scheme": "http",
-  "host": "127.0.0.1",
-  "port": 8080,
-  "path": "/search.php",
-  "canonical_path": "/search.php",
-  "auth_context": "anonymous",
-  "response_content_type": "text/html",
-  "statuses": [200],
-  "params": [
-    {
-      "name": "q",
-      "location": "query",
-      "type_hint": "string",
-      "sample_values": ["test"],
-      "reflected": true,
-      "candidate_tests": ["reflected_xss_candidate", "sqli"]
-    }
-  ],
-  "source_tools": ["static_html_crawler"],
-  "candidate_tests": ["reflected_xss_candidate", "sqli"]
+  "name": "admin",
+  "type": "form",
+  "enabled": true,
+  "login_url": "/user/login.php",
+  "method": "POST",
+  "data": {
+    "username": "admin",
+    "password": "admin123"
+  },
+  "success_check": {
+    "url": "/admin/index.php",
+    "contains": "admin"
+  }
 }
 ```
 
-## Dedupe Mode
-
-Strict:
+Chỉ chạy một profile:
 
 ```bash
-python -m recontool -c config.example.json --dedupe-mode strict
+python -B -m recontool -c config.example.json --auth-profile admin
 ```
 
-Smart:
+### Dynamic Crawler
 
-```bash
-python -m recontool -c config.example.json --dedupe-mode smart
+```json
+"dynamic": {
+  "enabled": false,
+  "max_pages": 30,
+  "timeout_ms": 15000,
+  "headless": true,
+  "storage_state": "",
+  "click_selectors": [],
+  "max_clicks_per_page": 0
+}
 ```
 
-Khác biệt:
+Nếu SPA cần click tab/nút mới sinh API:
 
-```text
-strict: ít gom nhầm hơn
-smart: gom /news/1 và /news/2 thành /news/{int}
+```json
+"click_selectors": ["button[data-load]", ".tab-comments"],
+"max_clicks_per_page": 3
 ```
 
-## Gợi Ý Workflow
-
-1. Chạy static crawler trước.
-2. Chạy dynamic crawler nếu web có SPA/JS.
-3. Import HAR từ browser/proxy nếu có.
-4. Thêm manual seed cho endpoint ẩn.
-5. Xem `inventory.md`.
-6. Dùng `params.txt` để lên test plan XSS/SQLi.
-
-## Giới Hạn Hiện Tại
-
-- Chưa tự login form.
-- Chưa tự submit form để tránh gây thay đổi dữ liệu ngoài ý muốn.
-- Chưa có active scanner XSS/SQLi, mới dừng ở recon và gợi ý candidate tests.
-- Burp/ZAP importer riêng chưa có, ưu tiên HAR importer trước vì dễ dùng chung.
-
-## Kiểm Tra Cú Pháp
-
-```bash
-python -m compileall recontool
-```
-
-Kiểm tra nhanh không cần target đang chạy:
+## Kiểm Tra Nhanh Không Cần Target
 
 ```bash
 python -B -m recontool --manual seeds.example.txt --no-static --out test-output
 ```
 
-Nếu chạy đúng sẽ sinh ra:
+Kiểm tra cú pháp không ghi cache:
 
-```text
-test-output/inventory.json
-test-output/inventory.md
-test-output/params.txt
+```bash
+python - <<'PY'
+from pathlib import Path
+import ast
+for path in Path("recontool").rglob("*.py"):
+    ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+print("AST syntax check passed")
+PY
 ```
+
+## Giới Hạn Hiện Tại
+
+- Không scan tự động.
+- Không gửi giá trị kiểm thử.
+- Không tự chứng minh XSS/SQLi.
+- Dynamic crawler chỉ click selector được cấu hình.
+- Importer mở rộng cho Burp/ZAP riêng chưa làm trong giai đoạn này.

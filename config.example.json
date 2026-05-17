@@ -2,12 +2,35 @@
   "base_url": "http://127.0.0.1:8080",
   "auth_context": "anonymous",
   "headers": {
-    "User-Agent": "ReconTool/0.1"
+    "User-Agent": "ReconTool/0.2"
   },
   "scope": {
     "include_hosts": ["127.0.0.1", "localhost"],
     "exclude_paths": ["/user/logout.php"]
   },
+  "auth_profiles": [
+    {
+      "name": "anonymous",
+      "type": "none",
+      "enabled": true
+    },
+    {
+      "name": "admin",
+      "type": "form",
+      "enabled": false,
+      "login_url": "/user/login.php",
+      "method": "POST",
+      "data": {
+        "username": "admin",
+        "password": "admin123"
+      },
+      "submit_selector": "button[type=\"submit\"], input[type=\"submit\"], button",
+      "success_check": {
+        "url": "/admin/index.php",
+        "contains": "admin"
+      }
+    }
+  ],
   "seeds": [
     "/",
     "/search.php?q=test",
@@ -29,7 +52,9 @@
     "max_pages": 30,
     "timeout_ms": 15000,
     "headless": true,
-    "storage_state": ""
+    "storage_state": "",
+    "click_selectors": [],
+    "max_clicks_per_page": 0
   },
   "imports": {
     "har_files": [],
