@@ -88,16 +88,12 @@ Chạy XSS:
 bash run_fuzz.sh recon-output/inventory.json --xss
 ```
 
-Lệnh trên chạy reflected XSS và DOM XSS trên query param. Nếu muốn chạy thêm Stored XSS qua POST/body/json:
+Lệnh trên chạy đủ reflected XSS, DOM XSS và Stored XSS. Tool tự bật POST/body/json cho nhóm XSS vì Stored XSS cần gửi dữ liệu.
 
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --include-post
-```
-
-Stored XSS cần cấu hình `stored_check_paths` trong `fuzz.config.example.json`, ví dụ:
+Stored XSS dùng `stored_check_paths` trong `fuzz.config.example.json` để biết URL nào cần mở lại sau khi submit payload. File mẫu đã để sẵn path cho lab local, khi test web khác thì sửa lại danh sách này.
 
 ```json
-"stored_check_paths": ["/news.php?id=1", "/spa/comments/1"]
+"stored_check_paths": ["/news.php?id=1", "/spa/comments/1", "/spa/logs"]
 ```
 
 Chạy SQLi:
@@ -112,13 +108,7 @@ Chạy cả XSS và SQLi:
 bash run_fuzz.sh recon-output/inventory.json --xss --sqli
 ```
 
-Cho phép fuzz POST body/json:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli --include-post
-```
-
-Với XSS, `--include-post` cũng bật Stored XSS nếu dùng chung với `--xss`.
+Đây là lệnh fuzz đầy đủ cho lab: reflected XSS, DOM XSS, Stored XSS, SQLi error-based, SQLi boolean-based và SQLi time-based. `--include-post` vẫn còn được hỗ trợ nhưng không cần thêm khi đã dùng `--xss` hoặc `--sqli`.
 
 Giới hạn số request:
 

@@ -10,10 +10,9 @@ Usage:
   bash run_fuzz.sh INVENTORY_JSON [options]
 
 Examples:
-  bash run_fuzz.sh recon-output/inventory.json --xss
-  bash run_fuzz.sh recon-output/inventory.json --xss --include-post
-  bash run_fuzz.sh recon-output/inventory.json --sqli
   bash run_fuzz.sh recon-output/inventory.json --xss --sqli
+  bash run_fuzz.sh recon-output/inventory.json --xss
+  bash run_fuzz.sh recon-output/inventory.json --sqli
   bash run_fuzz.sh recon-output/inventory.json --xss --dry-run
 EOF
   exit 2

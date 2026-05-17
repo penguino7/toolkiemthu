@@ -14,29 +14,29 @@ from .reporter import FuzzReporter
 
 
 class FuzzCliParser:
-    """Parser dòng lệnh cho fuzztool."""
+    """Parser dong lenh cho fuzztool."""
 
     def build(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description="Fuzz tool đọc inventory.json từ recontool")
-        parser.add_argument("inventory", help="Đường dẫn inventory.json sinh bởi recontool")
+        parser = argparse.ArgumentParser(description="Fuzz tool doc inventory.json tu recontool")
+        parser.add_argument("inventory", help="Duong dan inventory.json sinh boi recontool")
         parser.add_argument("-c", "--config", default="fuzz.config.example.json", help="File config fuzz")
-        parser.add_argument("-o", "--out", help="Thư mục output")
-        parser.add_argument("--xss", action="store_true", help="Bật nhóm XSS")
-        parser.add_argument("--xss-reflected", action="store_true", help="Bật reflected XSS")
-        parser.add_argument("--xss-stored", action="store_true", help="Bật stored XSS")
-        parser.add_argument("--xss-dom", action="store_true", help="Bật DOM XSS")
-        parser.add_argument("--sqli", action="store_true", help="Bật nhóm SQLi")
-        parser.add_argument("--sqli-error", action="store_true", help="Bật SQLi error-based")
-        parser.add_argument("--sqli-boolean", action="store_true", help="Bật SQLi boolean-based")
-        parser.add_argument("--sqli-time", action="store_true", help="Bật SQLi time-based")
-        parser.add_argument("--include-post", action="store_true", help="Cho phép fuzz body/json POST")
-        parser.add_argument("--max-requests", type=int, help="Giới hạn số request fuzz")
-        parser.add_argument("--dry-run", action="store_true", help="Chỉ liệt kê target, không gửi request")
+        parser.add_argument("-o", "--out", help="Thu muc output")
+        parser.add_argument("--xss", action="store_true", help="Bat tat ca XSS: reflected, DOM, stored")
+        parser.add_argument("--xss-reflected", action="store_true", help="Bat rieng reflected XSS")
+        parser.add_argument("--xss-stored", action="store_true", help="Bat rieng stored XSS")
+        parser.add_argument("--xss-dom", action="store_true", help="Bat rieng DOM XSS")
+        parser.add_argument("--sqli", action="store_true", help="Bat tat ca SQLi: error, boolean, time")
+        parser.add_argument("--sqli-error", action="store_true", help="Bat rieng SQLi error-based")
+        parser.add_argument("--sqli-boolean", action="store_true", help="Bat rieng SQLi boolean-based")
+        parser.add_argument("--sqli-time", action="store_true", help="Bat rieng SQLi time-based")
+        parser.add_argument("--include-post", action="store_true", help="Cho phep fuzz body/json POST")
+        parser.add_argument("--max-requests", type=int, help="Gioi han so request fuzz")
+        parser.add_argument("--dry-run", action="store_true", help="Chi liet ke target, khong gui request")
         return parser
 
 
 class FuzzApplication:
-    """Điều phối pipeline fuzz."""
+    """Dieu phoi pipeline fuzz."""
 
     def __init__(self, loader: FuzzConfigLoader | None = None, reporter: FuzzReporter | None = None) -> None:
         self.loader = loader or FuzzConfigLoader()
@@ -49,7 +49,7 @@ class FuzzApplication:
 
         selected = self._selected_kinds(config)
         if not selected:
-            print("[!] Chưa chọn scanner. Dùng --xss, --sqli hoặc bật trong config.")
+            print("[!] Chua chon scanner. Dung --xss, --sqli hoac bat trong config.")
             return 2
 
         targets = InventoryLoader(config).targets_for(args.inventory, selected)
@@ -82,31 +82,47 @@ class FuzzApplication:
         if args.dry_run:
             config.setdefault("safety", {})["dry_run"] = True
 
+        self._apply_xss_overrides(config, args)
+        self._apply_sqli_overrides(config, args)
+
+    def _apply_xss_overrides(self, config: dict, args: argparse.Namespace) -> None:
         selected_xss_type = args.xss_reflected or args.xss_stored or args.xss_dom
         if args.xss or selected_xss_type:
-            xss_config = config.setdefault("xss", {})
-            xss_config["enabled"] = True
+            config.setdefault("xss", {})["enabled"] = True
 
         if args.xss:
-            # --xss la che do tien loi: chay reflected + DOM. Stored XSS chi
-            # tu bat khi nguoi dung cho phep fuzz POST/body bang --include-post.
+            # Trong lab, --xss nghia la fuzz du reflected, DOM va stored.
             config.setdefault("xss", {})["reflected"] = True
             config.setdefault("xss", {})["dom"] = True
-            if args.include_post or args.xss_stored:
-                config.setdefault("xss", {})["stored"] = True
-        elif selected_xss_type:
+            config.setdefault("xss", {})["stored"] = True
+            config.setdefault("safety", {})["include_post"] = True
+            return
+
+        if selected_xss_type:
             config.setdefault("xss", {})["reflected"] = bool(args.xss_reflected)
             config.setdefault("xss", {})["stored"] = bool(args.xss_stored)
             config.setdefault("xss", {})["dom"] = bool(args.xss_dom)
+            if args.xss_stored:
+                config.setdefault("safety", {})["include_post"] = True
 
-        if args.sqli or args.sqli_error or args.sqli_boolean or args.sqli_time:
+    def _apply_sqli_overrides(self, config: dict, args: argparse.Namespace) -> None:
+        selected_sqli_type = args.sqli_error or args.sqli_boolean or args.sqli_time
+        if args.sqli or selected_sqli_type:
             config.setdefault("sqli", {})["enabled"] = True
-        if args.sqli_error:
+
+        if args.sqli:
+            # Trong lab, --sqli nghia la fuzz du error-based, boolean va time.
             config.setdefault("sqli", {})["error_based"] = True
-        if args.sqli_boolean:
             config.setdefault("sqli", {})["boolean_based"] = True
-        if args.sqli_time:
             config.setdefault("sqli", {})["time_based"] = True
+            config.setdefault("safety", {})["include_post"] = True
+            return
+
+        if selected_sqli_type:
+            config.setdefault("sqli", {})["error_based"] = bool(args.sqli_error)
+            config.setdefault("sqli", {})["boolean_based"] = bool(args.sqli_boolean)
+            config.setdefault("sqli", {})["time_based"] = bool(args.sqli_time)
+            config.setdefault("safety", {})["include_post"] = True
 
     def _selected_kinds(self, config: dict) -> set[str]:
         selected = set()
@@ -167,11 +183,8 @@ class FuzzApplication:
             print(f"[*] SQLi scanners: {', '.join(active) if active else 'none'}")
 
     def _print_safety_warnings(self, config: dict) -> None:
-        include_post = bool(config.get("safety", {}).get("include_post", False))
         stored_enabled = bool(config.get("xss", {}).get("stored", False))
-        if stored_enabled and not include_post:
-            print("[!] Stored XSS da bat nhung POST/body/json dang bi chan. Them --include-post de chay stored.")
-        if stored_enabled and include_post and not config.get("xss", {}).get("stored_check_paths", []):
+        if stored_enabled and not config.get("xss", {}).get("stored_check_paths", []):
             print("[!] Stored XSS can stored_check_paths de biet URL nao se mo lai de xac minh payload da luu.")
 
     def _is_xss_target(self, target: FuzzTarget) -> bool:

@@ -33,7 +33,11 @@
     "reflected": true,
     "stored": false,
     "dom": false,
-    "stored_check_paths": [],
+    "stored_check_paths": [
+      "/news.php?id=1",
+      "/spa/comments/1",
+      "/spa/logs"
+    ],
     "dom_headless": true,
     "dom_timeout_ms": 8000,
     "post_load_wait_ms": 500

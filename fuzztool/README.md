@@ -13,15 +13,15 @@ bash run_fuzz.sh recon-output/inventory.json --xss --sqli
 
 Mặc định fuzztool:
 
-- Chỉ fuzz query param.
+- `--xss` hoặc `--sqli` sẽ tự bật POST/body/json để quét đủ lab.
 - Không fuzz `password`, `csrf`, `token`, `session`.
 - Giới hạn số request bằng `max_requests`.
 - Có `--dry-run` để liệt kê target mà không gửi request.
-- POST/body/json chỉ chạy khi bật `--include-post`.
+- POST/body/json vẫn có thể bật thủ công bằng `--include-post` khi chạy scanner riêng lẻ.
 - XSS dùng payload proof-of-execution như `<script>alert("FUZZXSS_xxxxxxxx")</script>`.
 - XSS chỉ được ghi vào `findings` khi Playwright bắt được dialog chứa marker, không ghi các payload chỉ phản xạ/render nhưng chưa thực thi.
-- `--xss` chạy reflected XSS và DOM XSS. Stored XSS sẽ chạy thêm khi có `--include-post`.
-- Boolean/time SQLi là tùy chọn.
+- `--xss` chạy reflected XSS, DOM XSS và Stored XSS.
+- `--sqli` chạy error-based, boolean-based và time-based SQLi.
 
 ## Lệnh Mẫu
 
@@ -31,22 +31,16 @@ Chỉ xem target, không gửi request:
 bash run_fuzz.sh recon-output/inventory.json --xss --sqli --dry-run
 ```
 
-Chạy XSS GET/query, gồm reflected XSS và DOM XSS:
+Chạy đủ nhóm XSS, gồm reflected XSS, DOM XSS và Stored XSS:
 
 ```bash
 bash run_fuzz.sh recon-output/inventory.json --xss
 ```
 
-Chạy thêm Stored XSS qua POST/body/json:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --include-post
-```
-
-Stored XSS cần cấu hình `stored_check_paths` trong `fuzz.config.example.json`, vì tool phải biết sau khi submit payload thì nên mở URL nào để xác minh payload đã được lưu và thực thi:
+Stored XSS dùng `stored_check_paths` trong `fuzz.config.example.json`, vì tool phải biết sau khi submit payload thì nên mở URL nào để xác minh payload đã được lưu và thực thi. File mẫu đã để sẵn path cho lab local, khi test web khác thì sửa lại danh sách này.
 
 ```json
-"stored_check_paths": ["/news.php?id=1", "/spa/comments/1"]
+"stored_check_paths": ["/news.php?id=1", "/spa/comments/1", "/spa/logs"]
 ```
 
 Payload XSS mặc định là payload thật có marker bên trong:
@@ -57,16 +51,16 @@ Payload XSS mặc định là payload thật có marker bên trong:
 <img src=x onerror=alert("FUZZXSS_xxxxxxxx")>
 ```
 
-Chạy SQLi error-based mặc định:
+Chạy đủ nhóm SQLi, gồm error-based, boolean-based và time-based:
 
 ```bash
 bash run_fuzz.sh recon-output/inventory.json --sqli
 ```
 
-Cho phép fuzz POST body/json:
+Chạy đầy đủ cả XSS và SQLi:
 
 ```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli --include-post
+bash run_fuzz.sh recon-output/inventory.json --xss --sqli
 ```
 
 Chạy riêng DOM XSS:
@@ -75,7 +69,7 @@ Chạy riêng DOM XSS:
 bash run_fuzz.sh recon-output/inventory.json --xss-dom
 ```
 
-Chạy thêm SQLi boolean/time:
+Chạy riêng SQLi boolean/time:
 
 ```bash
 bash run_fuzz.sh recon-output/inventory.json --sqli --sqli-boolean --sqli-time
