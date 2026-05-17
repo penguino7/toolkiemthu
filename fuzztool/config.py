@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import json
+from copy import deepcopy
+from pathlib import Path
+from typing import Any, Dict
+
+
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "base_url": "http://127.0.0.1:8080",
+    "headers": {"User-Agent": "FuzzTool/0.1"},
+    "scope": {
+        "include_hosts": ["127.0.0.1", "localhost"],
+        "exclude_paths": ["/user/logout.php"],
+    },
+    "safety": {
+        "include_post": False,
+        "max_requests": 100,
+        "delay_seconds": 0.05,
+        "dry_run": False,
+        "skip_param_names": [
+            "csrf",
+            "csrf_token",
+            "_csrf",
+            "token",
+            "auth",
+            "authorization",
+            "password",
+            "pass",
+            "pwd",
+            "session",
+            "sid",
+            "phpsessid",
+        ],
+    },
+    "xss": {
+        "enabled": False,
+        "reflected": True,
+        "stored": False,
+        "dom": False,
+        "stored_check_paths": [],
+    },
+    "sqli": {
+        "enabled": False,
+        "error_based": True,
+        "boolean_based": False,
+        "time_based": False,
+        "time_threshold_seconds": 2.5,
+    },
+    "output_dir": "fuzz-output",
+}
+
+
+class FuzzConfigLoader:
+    """Đọc cấu hình cho fuzztool."""
+
+    def __init__(self, defaults: Dict[str, Any] | None = None) -> None:
+        self.defaults = deepcopy(defaults or DEFAULT_CONFIG)
+
+    def load(self, path: str | None) -> Dict[str, Any]:
+        config = deepcopy(self.defaults)
+        if not path:
+            return config
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        return self.deep_merge(config, data)
+
+    def deep_merge(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        result = dict(base)
+        for key, value in override.items():
+            if isinstance(value, dict) and isinstance(result.get(key), dict):
+                result[key] = self.deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result

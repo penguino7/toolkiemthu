@@ -5,8 +5,11 @@ __pycache__/
 .mypy_cache/
 recon-output/
 recon-output*/
+fuzz-output/
+fuzz-output*/
 test-output/
 test-output*/
+test-fuzz-output*/
 one-command-test/
 *.har
 admin-state.json

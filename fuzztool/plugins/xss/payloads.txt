@@ -1,0 +1,5 @@
+# Payloads mặc định dùng marker an toàn.
+# Scanner sẽ tự sinh marker riêng cho từng target.
+FUZZXSS_MARKER
+">FUZZXSS_MARKER
+'FUZZXSS_MARKER

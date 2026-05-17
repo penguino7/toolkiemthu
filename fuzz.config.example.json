@@ -1,0 +1,45 @@
+{
+  "base_url": "http://127.0.0.1:8080",
+  "headers": {
+    "User-Agent": "FuzzTool/0.1"
+  },
+  "scope": {
+    "include_hosts": ["127.0.0.1", "localhost"],
+    "exclude_paths": ["/user/logout.php"]
+  },
+  "safety": {
+    "include_post": false,
+    "max_requests": 100,
+    "delay_seconds": 0.05,
+    "dry_run": false,
+    "skip_param_names": [
+      "csrf",
+      "csrf_token",
+      "_csrf",
+      "token",
+      "auth",
+      "authorization",
+      "password",
+      "pass",
+      "pwd",
+      "session",
+      "sid",
+      "phpsessid"
+    ]
+  },
+  "xss": {
+    "enabled": false,
+    "reflected": true,
+    "stored": false,
+    "dom": false,
+    "stored_check_paths": []
+  },
+  "sqli": {
+    "enabled": false,
+    "error_based": true,
+    "boolean_based": false,
+    "time_based": false,
+    "time_threshold_seconds": 2.5
+  },
+  "output_dir": "fuzz-output"
+}

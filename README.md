@@ -1,172 +1,43 @@
-# Tool Recon Kiểm Thử Web
+# Tool Kiểm Thử Web
 
-Tool này chỉ tập trung vào **recon web**: thu thập endpoint, form, URL param, body param, JSON param, request SPA/API và chuẩn hóa chúng về một schema chung. Tool không scan tự động, không gửi giá trị kiểm thử và không cố chứng minh lỗ hổng.
-
-Code đã được tổ chức lại theo OOP để dễ đọc hơn:
+Repo này gồm hai tool tách riêng nhưng dùng chung một luồng làm việc:
 
 ```text
-crawl/import -> normalize -> enrich metadata -> dedupe -> export
+recontool/  thu thập endpoint, form, param, SPA/API và xuất inventory
+fuzztool/   đọc inventory từ recontool để kiểm thử XSS/SQLi có kiểm soát
 ```
 
-## Chức Năng Chính
-
-### Static Crawl
-
-Đọc HTML không chạy JavaScript để lấy:
+Luồng sử dụng chính:
 
 ```text
-link <a href>
-form action/method
-input/textarea/select name
-URL param
-status code
-response content-type
+recontool -> recon-output/inventory.json -> fuzztool -> fuzz-output/findings.json
 ```
 
-### Dynamic Crawl Cho SPA
+`recontool` chỉ làm recon, không gửi giá trị kiểm thử. `fuzztool` mới là phần gửi payload/marker kiểm thử, có `--dry-run`, giới hạn scope, giới hạn request và mặc định không fuzz POST/body/json nếu chưa bật `--include-post`.
 
-Dùng Playwright để chạy browser thật và bắt request do JavaScript sinh ra:
+## Cài Đặt Trên Kali/Linux
 
-```text
-route SPA
-fetch/XHR API endpoint
-POST body nếu browser gửi
-JSON response content-type
-status code
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Ví dụ browser vào:
+Nếu dùng dynamic crawler hoặc DOM XSS scanner:
 
-```text
-/spa/search?q=AI
+```bash
+python -m playwright install chromium
 ```
 
-nhưng JavaScript gọi:
+Nếu Kali thiếu thư viện hệ thống cho Chromium:
 
-```text
-GET /api/spa/search.php?q=AI
+```bash
+python -m playwright install-deps chromium
 ```
 
-thì dynamic crawler có thể ghi nhận API này.
-
-### Auth Profile
-
-Hỗ trợ crawl theo context:
-
-```text
-anonymous
-admin
-user
-```
-
-Nếu cấu hình form login, tool đăng nhập để nhìn thấy endpoint sau đăng nhập. Đây vẫn là recon, không phải kiểm thử lỗ hổng.
-
-### Normalize, Enrich, Dedupe
-
-Mọi dữ liệu được đưa về `EndpointRecord`, sau đó:
-
-```text
-normalize   chuẩn hóa URL, param, body, JSON, content-type
-enrich      gắn nhãn candidate như sqli/reflected_xss_candidate
-dedupe      gom endpoint trùng
-export      sinh inventory và test_plan
-```
-
-`candidate_tests` chỉ là gợi ý recon, không phải kết luận có lỗ hổng.
-
-## Cấu Trúc File
-
-```text
-.
-├── README.md
-├── config.example.json
-├── requirements.txt
-├── run_recon.sh
-├── seeds.example.txt
-└── recontool/
-    ├── __main__.py
-    ├── auth.py
-    ├── cli.py
-    ├── config.py
-    ├── dedupe.py
-    ├── enrich.py
-    ├── exporters.py
-    ├── http_client.py
-    ├── models.py
-    ├── normalizer.py
-    ├── scope.py
-    ├── crawlers/
-    │   ├── playwright_dynamic.py
-    │   └── static_html.py
-    └── importers/
-        ├── har.py
-        └── manual_seed.py
-```
-
-## Class Chính Theo Từng File
-
-`cli.py`
-
-- `CliArgumentParser`: tạo command-line options.
-- `ReconApplication`: điều phối toàn pipeline từ load config đến export.
-
-`config.py`
-
-- `ConfigLoader`: đọc `config.example.json` và merge với config mặc định.
-
-`models.py`
-
-- `Param`: mô tả một tham số như `query:q`, `body:content`, `json:user.id`.
-- `EndpointRecord`: object trung tâm đại diện cho một endpoint đã chuẩn hóa.
-
-`normalizer.py`
-
-- `ReconNormalizer`: chuẩn hóa URL, suy luận type, parse query/body/JSON và tạo `EndpointRecord`.
-
-`scope.py`
-
-- `ScopePolicy`: quyết định URL nào được phép crawl theo `include_hosts` và `exclude_paths`.
-
-`http_client.py`
-
-- `HttpResult`: kết quả HTTP rút gọn.
-- `ResponseDecoder`: giải mã response text theo content-type.
-- `HttpSession`: HTTP client có cookie jar, dùng cho static crawl và auth.
-
-`auth.py`
-
-- `AuthManager`: chọn auth profile, tạo session và login form cơ bản.
-
-`crawlers/static_html.py`
-
-- `HtmlDiscoveryParser`: parse link/form/input từ HTML.
-- `StaticHtmlCrawler`: crawl HTML tĩnh và tạo `EndpointRecord`.
-
-`crawlers/playwright_dynamic.py`
-
-- `DynamicCrawler`: chạy Playwright, bắt request/response SPA/API và tạo `EndpointRecord`.
-
-`importers/manual_seed.py`
-
-- `ManualSeedImporter`: đọc endpoint do bạn tự ghi trong file text/JSON.
-
-`importers/har.py`
-
-- `HarImporter`: đọc HAR file và chuyển request thành `EndpointRecord`.
-
-`enrich.py`
-
-- `RecordEnricher`: gắn nhãn candidate XSS/SQLi dựa trên metadata đã quan sát được.
-
-`dedupe.py`
-
-- `EndpointDeduplicator`: gom endpoint trùng theo fingerprint.
-
-`exporters.py`
-
-- `ReconExporter`: xuất `inventory.json`, `inventory.md`, `params.txt`, `test_plan.md`.
-
-## Chạy Trên Kali/Linux
+## Chạy Recon
 
 Giả sử lab chạy tại:
 
@@ -174,42 +45,197 @@ Giả sử lab chạy tại:
 http://127.0.0.1:8080
 ```
 
-Chạy recon tĩnh:
+Chạy static recon:
 
 ```bash
 bash run_recon.sh http://127.0.0.1:8080
 ```
 
-Chạy thêm dynamic crawler cho SPA/API:
+Chạy cả static và dynamic recon:
 
 ```bash
 bash run_recon.sh http://127.0.0.1:8080 --dynamic
 ```
 
-Cài Playwright nếu Kali chưa có:
+Cài Playwright trong lúc chạy nếu chưa cài:
 
 ```bash
 bash run_recon.sh http://127.0.0.1:8080 --dynamic --install-playwright
 ```
 
-Đổi thư mục output:
-
-```bash
-bash run_recon.sh http://127.0.0.1:8080 --out recon-newshub
-```
-
-## Output
+Output recon:
 
 ```text
-inventory.json  dữ liệu đầy đủ cho tool khác đọc tiếp
-inventory.md    bảng endpoint dễ đọc
-params.txt      danh sách param ngắn gọn
-test_plan.md    nhóm candidate XSS/SQLi để test thủ công sau
+recon-output/inventory.json
+recon-output/inventory.md
+recon-output/params.txt
+recon-output/test_plan.md
 ```
 
-## Cấu Hình Quan Trọng
+## Chạy Fuzz
 
-### Scope
+Fuzztool đọc file `inventory.json` sinh bởi recontool.
+
+Xem target trước, không gửi request:
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --xss --sqli --dry-run
+```
+
+Chạy XSS:
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --xss
+```
+
+Chạy SQLi:
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --sqli
+```
+
+Chạy cả XSS và SQLi:
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --xss --sqli
+```
+
+Cho phép fuzz POST body/json:
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --xss --sqli --include-post
+```
+
+Giới hạn số request:
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --xss --sqli --max-requests 50
+```
+
+Output fuzz:
+
+```text
+fuzz-output/findings.json
+fuzz-output/findings.md
+```
+
+## Cấu Trúc Repo
+
+```text
+.
+├── README.md
+├── RECON_FLOW.md
+├── config.example.json
+├── fuzz.config.example.json
+├── requirements.txt
+├── run_recon.sh
+├── run_fuzz.sh
+├── seeds.example.txt
+├── recontool/
+│   ├── __main__.py
+│   ├── auth.py
+│   ├── cli.py
+│   ├── config.py
+│   ├── dedupe.py
+│   ├── enrich.py
+│   ├── exporters.py
+│   ├── http_client.py
+│   ├── models.py
+│   ├── normalizer.py
+│   ├── scope.py
+│   ├── crawlers/
+│   │   ├── playwright_dynamic.py
+│   │   └── static_html.py
+│   └── importers/
+│       ├── har.py
+│       └── manual_seed.py
+└── fuzztool/
+    ├── __main__.py
+    ├── cli.py
+    ├── config.py
+    ├── http_client.py
+    ├── inventory_loader.py
+    ├── models.py
+    ├── mutator.py
+    ├── reporter.py
+    └── plugins/
+        ├── xss/
+        │   ├── runner.py
+        │   ├── reflected.py
+        │   ├── stored.py
+        │   ├── dom.py
+        │   └── detector.py
+        └── sqli/
+            ├── runner.py
+            ├── error_based.py
+            ├── boolean_based.py
+            ├── time_based.py
+            └── detector.py
+```
+
+## ReconTool
+
+Recontool làm các việc:
+
+```text
+static crawl
+dynamic crawl bằng Playwright
+auth profile
+manual seed / HAR import
+normalize EndpointRecord
+enrich candidate metadata
+dedupe endpoint
+export inventory
+```
+
+Các class trọng tâm:
+
+```text
+ReconApplication      điều phối pipeline recon
+EndpointRecord        dữ liệu trung tâm của recon
+ReconNormalizer       chuẩn hóa URL, param, body, JSON
+StaticHtmlCrawler     crawl HTML tĩnh
+DynamicCrawler        bắt SPA/API request
+RecordEnricher        gắn candidate_tests
+EndpointDeduplicator  gom endpoint trùng
+ReconExporter         xuất inventory/test_plan
+```
+
+## FuzzTool
+
+Fuzztool làm các việc:
+
+```text
+đọc recon-output/inventory.json
+lọc target theo candidate_tests
+mutate query/body/json param
+gửi request fuzz có giới hạn
+detector phân tích response
+export findings
+```
+
+Các class trọng tâm:
+
+```text
+FuzzApplication    điều phối pipeline fuzz
+InventoryLoader    đọc inventory và tạo FuzzTarget
+FuzzTarget         một param cụ thể sẽ được fuzz
+RequestMutator     thay sample value bằng payload/marker
+FuzzHttpClient     gửi request và đo response
+XssRunner          chạy nhóm XSS
+SqliRunner         chạy nhóm SQLi
+FuzzReporter       xuất findings
+```
+
+## Cấu Hình Recon
+
+File chính:
+
+```text
+config.example.json
+```
+
+Phần scope:
 
 ```json
 "scope": {
@@ -218,109 +244,81 @@ test_plan.md    nhóm candidate XSS/SQLi để test thủ công sau
 }
 ```
 
-### Seeds
-
-```json
-"seeds": [
-  "/",
-  "/search.php?q=test",
-  "/news.php?id=1",
-  "/spa/search",
-  "/spa/article/1"
-]
-```
-
-### Auth Profiles
-
-Mặc định chỉ crawl anonymous:
-
-```json
-"auth_profiles": [
-  {
-    "name": "anonymous",
-    "type": "none",
-    "enabled": true
-  }
-]
-```
-
-Nếu muốn recon sau đăng nhập, bật profile admin và sửa đúng thông tin form:
-
-```json
-{
-  "name": "admin",
-  "type": "form",
-  "enabled": true,
-  "login_url": "/user/login.php",
-  "method": "POST",
-  "data": {
-    "username": "admin",
-    "password": "admin123"
-  },
-  "success_check": {
-    "url": "/admin/index.php",
-    "contains": "admin"
-  }
-}
-```
-
-Chỉ chạy một profile:
-
-```bash
-python -B -m recontool -c config.example.json --auth-profile admin
-```
-
-### Dynamic Crawler
+Phần dynamic crawler:
 
 ```json
 "dynamic": {
   "enabled": false,
-  "max_pages": 30,
-  "timeout_ms": 15000,
-  "headless": true,
-  "storage_state": "",
-  "click_selectors": [],
-  "max_clicks_per_page": 0,
-  "deny_click_texts": ["logout", "delete", "remove", "submit", "sign out"],
   "resource_types": ["document", "xhr", "fetch"],
   "auto_scroll": false,
-  "scroll_steps": 0,
-  "scroll_delay_ms": 300,
+  "click_selectors": [],
+  "max_clicks_per_page": 0,
   "debug": false
 }
 ```
 
-Nếu SPA cần click tab/nút mới sinh API:
+## Cấu Hình Fuzz
 
-```json
-"click_selectors": ["button[data-load]", ".tab-comments"],
-"max_clicks_per_page": 3
-```
-
-Ý nghĩa các option mới:
+File chính:
 
 ```text
-resource_types      chỉ giữ document/xhr/fetch để tránh nhiễu image/font/css
-auto_scroll         bật scroll để kích hoạt lazy-load API
-scroll_steps        số lần scroll mỗi page
-scroll_delay_ms     thời gian chờ sau mỗi lần scroll
-deny_click_texts    tránh click nhầm logout/delete/submit
-debug               in summary dynamic crawl
+fuzz.config.example.json
 ```
 
-## Kiểm Tra Nhanh Không Cần Target
+Phần safety:
+
+```json
+"safety": {
+  "include_post": false,
+  "max_requests": 100,
+  "delay_seconds": 0.05,
+  "dry_run": false
+}
+```
+
+Phần XSS:
+
+```json
+"xss": {
+  "enabled": false,
+  "reflected": true,
+  "stored": false,
+  "dom": false
+}
+```
+
+Phần SQLi:
+
+```json
+"sqli": {
+  "enabled": false,
+  "error_based": true,
+  "boolean_based": false,
+  "time_based": false
+}
+```
+
+## Kiểm Tra Nhanh
+
+Kiểm tra recon không cần target đang chạy:
 
 ```bash
 python -B -m recontool --manual seeds.example.txt --no-static --out test-output
 ```
 
-Kiểm tra cú pháp không ghi cache:
+Kiểm tra fuzz không gửi request:
+
+```bash
+python -B -m fuzztool test-output/inventory.json --xss --sqli --dry-run --out test-fuzz-output
+```
+
+Kiểm tra cú pháp:
 
 ```bash
 python - <<'PY'
 from pathlib import Path
 import ast
-for path in Path("recontool").rglob("*.py"):
+for path in list(Path("recontool").rglob("*.py")) + list(Path("fuzztool").rglob("*.py")):
     ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 print("AST syntax check passed")
 PY
@@ -328,8 +326,15 @@ PY
 
 ## Giới Hạn Hiện Tại
 
-- Không scan tự động.
-- Không gửi giá trị kiểm thử.
-- Không tự chứng minh XSS/SQLi.
+Recontool:
+
 - Dynamic crawler chỉ click selector được cấu hình.
-- Importer mở rộng cho Burp/ZAP riêng chưa làm trong giai đoạn này.
+- Importer mở rộng cho Burp/ZAP riêng chưa làm.
+
+Fuzztool:
+
+- Finding là candidate, vẫn cần xác minh thủ công.
+- Stored XSS cần cấu hình `stored_check_paths`.
+- DOM XSS cần Playwright.
+- Boolean/time SQLi mặc định tắt vì dễ nhiễu hoặc chậm.
+- POST/body/json mặc định tắt để tránh thay đổi dữ liệu ngoài ý muốn.
