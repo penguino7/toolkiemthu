@@ -18,6 +18,7 @@ Mặc định fuzztool:
 - Giới hạn số request bằng `max_requests`.
 - Có `--dry-run` để liệt kê target mà không gửi request.
 - POST/body/json chỉ chạy khi bật `--include-post`.
+- XSS dùng payload proof-of-execution như `<script>alert("FUZZXSS_xxxxxxxx")</script>`.
 - Stored XSS, DOM XSS, boolean/time SQLi là tùy chọn.
 
 ## Lệnh Mẫu
@@ -32,6 +33,14 @@ Chạy XSS reflected mặc định:
 
 ```bash
 bash run_fuzz.sh recon-output/inventory.json --xss
+```
+
+Payload XSS mặc định là payload thật có marker bên trong:
+
+```text
+<script>alert("FUZZXSS_xxxxxxxx")</script>
+"><svg/onload=alert("FUZZXSS_xxxxxxxx")>
+<img src=x onerror=alert("FUZZXSS_xxxxxxxx")>
 ```
 
 Chạy SQLi error-based mặc định:

@@ -29,10 +29,13 @@
   },
   "xss": {
     "enabled": false,
+    "payload_mode": "proof",
     "reflected": true,
     "stored": false,
     "dom": false,
-    "stored_check_paths": []
+    "stored_check_paths": [],
+    "dom_headless": true,
+    "dom_timeout_ms": 8000
   },
   "sqli": {
     "enabled": false,

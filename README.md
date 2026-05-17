@@ -13,7 +13,7 @@ Luồng sử dụng chính:
 recontool -> recon-output/inventory.json -> fuzztool -> fuzz-output/findings.json
 ```
 
-`recontool` chỉ làm recon, không gửi giá trị kiểm thử. `fuzztool` mới là phần gửi payload/marker kiểm thử, có `--dry-run`, giới hạn scope, giới hạn request và mặc định không fuzz POST/body/json nếu chưa bật `--include-post`.
+`recontool` chỉ làm recon, không gửi giá trị kiểm thử. `fuzztool` mới là phần gửi payload kiểm thử, có `--dry-run`, giới hạn scope, giới hạn request và mặc định không fuzz POST/body/json nếu chưa bật `--include-post`.
 
 ## Cài Đặt Trên Kali/Linux
 
@@ -220,7 +220,7 @@ Các class trọng tâm:
 FuzzApplication    điều phối pipeline fuzz
 InventoryLoader    đọc inventory và tạo FuzzTarget
 FuzzTarget         một param cụ thể sẽ được fuzz
-RequestMutator     thay sample value bằng payload/marker
+RequestMutator     thay sample value bằng payload kiểm thử
 FuzzHttpClient     gửi request và đo response
 XssRunner          chạy nhóm XSS
 SqliRunner         chạy nhóm SQLi
@@ -281,11 +281,24 @@ Phần XSS:
 ```json
 "xss": {
   "enabled": false,
+  "payload_mode": "proof",
   "reflected": true,
   "stored": false,
-  "dom": false
+  "dom": false,
+  "dom_headless": true,
+  "dom_timeout_ms": 8000
 }
 ```
+
+`payload_mode` mặc định là `proof`, tức là XSS scanner dùng payload thật như:
+
+```text
+<script>alert("FUZZXSS_xxxxxxxx")</script>
+"><svg/onload=alert("FUZZXSS_xxxxxxxx")>
+<img src=x onerror=alert("FUZZXSS_xxxxxxxx")>
+```
+
+Marker `FUZZXSS_xxxxxxxx` vẫn được giữ bên trong payload để tool truy vết finding.
 
 Phần SQLi:
 

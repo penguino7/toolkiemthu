@@ -21,7 +21,7 @@ class XssRunner:
         findings: List[Finding] = []
 
         if options.get("reflected", True):
-            scanner = ReflectedXssScanner(self.client)
+            scanner = ReflectedXssScanner(self.client, self.config)
             for target in targets:
                 findings.extend(scanner.scan(target))
 

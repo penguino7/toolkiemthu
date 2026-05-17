@@ -8,13 +8,14 @@ from ...http_client import FuzzHttpClient
 from ...models import Finding, FuzzTarget
 from ...mutator import RequestMutator
 from .detector import XssDetector
+from .payload_factory import XssPayloadFactory
 
 
 class StoredXssScanner:
     """Stored XSS scanner tùy chọn.
 
-    Scanner này chỉ chạy khi người dùng bật include_post và cấu hình
-    stored_check_paths. Mặc định không bật để tránh tạo dữ liệu ngoài ý muốn.
+    Scanner này dùng payload thật. Mặc định không bật để tránh tạo dữ liệu ngoài
+    ý muốn trên target không phải lab.
     """
 
     def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
@@ -22,13 +23,15 @@ class StoredXssScanner:
         self.config = config
         self.mutator = mutator or RequestMutator()
         self.detector = XssDetector()
+        self.payload_factory = XssPayloadFactory()
 
     def scan(self, target: FuzzTarget) -> List[Finding]:
         if target.param_location not in {"body", "json"}:
             return []
 
         marker = self._marker(target)
-        method, url, body, headers = self.mutator.mutate(target, marker)
+        payload = self.payload_factory.proof_payloads(marker)[0]
+        method, url, body, headers = self.mutator.mutate(target, payload)
         submit = self.client.send(method, url, body=body, headers=headers)
         findings = []
 
@@ -43,11 +46,12 @@ class StoredXssScanner:
                         subtype="stored",
                         severity="high",
                         target=target,
-                        payload=marker,
-                        evidence="marker_persisted_and_rendered",
+                        payload=payload,
+                        evidence="xss_proof_payload_persisted",
                         request_url=response.url,
                         status=response.status,
                         details={
+                            "marker": marker,
                             "submit_status": submit.status,
                             "check_url": check_url,
                             "context": context,

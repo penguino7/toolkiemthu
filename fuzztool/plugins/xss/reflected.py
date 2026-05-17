@@ -7,19 +7,22 @@ from ...http_client import FuzzHttpClient
 from ...models import Finding, FuzzTarget
 from ...mutator import RequestMutator
 from .detector import XssDetector
+from .payload_factory import XssPayloadFactory
 
 
 class ReflectedXssScanner:
-    """Kiểm tra XSS reflected bằng marker an toàn."""
+    """Kiểm tra reflected XSS bằng payload thật có marker."""
 
-    def __init__(self, client: FuzzHttpClient, mutator: RequestMutator | None = None) -> None:
+    def __init__(self, client: FuzzHttpClient, config: dict | None = None, mutator: RequestMutator | None = None) -> None:
         self.client = client
+        self.config = config or {}
         self.mutator = mutator or RequestMutator()
         self.detector = XssDetector()
+        self.payload_factory = XssPayloadFactory()
 
     def scan(self, target: FuzzTarget) -> List[Finding]:
         marker = self._marker(target)
-        payloads = [marker, f'">{marker}', f"'{marker}"]
+        payloads = self._payloads(marker)
         findings: List[Finding] = []
 
         for payload in payloads:
@@ -31,16 +34,26 @@ class ReflectedXssScanner:
                     Finding(
                         vuln_type="xss",
                         subtype="reflected",
-                        severity="medium",
+                        severity="high" if "alert(" in payload else "medium",
                         target=target,
                         payload=payload,
-                        evidence="marker_reflected_in_response",
+                        evidence="xss_proof_payload_reflected",
                         request_url=exchange.url,
                         status=exchange.status,
-                        details={"context": context, "elapsed_seconds": round(exchange.elapsed_seconds, 4)},
+                        details={
+                            "context": context,
+                            "marker": marker,
+                            "elapsed_seconds": round(exchange.elapsed_seconds, 4),
+                        },
                     )
                 )
         return findings
+
+    def _payloads(self, marker: str) -> List[str]:
+        mode = self.config.get("xss", {}).get("payload_mode", "proof")
+        if mode == "marker":
+            return self.payload_factory.marker_payloads(marker)
+        return self.payload_factory.proof_payloads(marker)
 
     def _marker(self, target: FuzzTarget) -> str:
         seed = f"{target.method}|{target.path}|{target.param_location}|{target.param_name}"
