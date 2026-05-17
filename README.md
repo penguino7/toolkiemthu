@@ -124,7 +124,6 @@ fuzz-output/findings.md
 ```text
 .
 ├── README.md
-├── RECON_FLOW.md
 ├── config.example.json
 ├── fuzz.config.example.json
 ├── requirements.txt
@@ -133,6 +132,7 @@ fuzz-output/findings.md
 ├── seeds.example.txt
 ├── recontool/
 │   ├── __main__.py
+│   ├── RECON_FLOW.md
 │   ├── auth.py
 │   ├── cli.py
 │   ├── config.py
