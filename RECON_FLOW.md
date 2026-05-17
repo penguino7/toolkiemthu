@@ -1,28 +1,36 @@
 # Biểu Đồ Hoạt Động Recon Tool
 
-File này mô tả luồng hoạt động của toàn bộ recon tool bằng Mermaid. Có thể xem trực tiếp trên GitHub vì GitHub hỗ trợ render Mermaid trong Markdown.
+File này mô tả luồng hoạt động của toàn bộ recon tool bằng Mermaid. GitHub có thể render trực tiếp các biểu đồ trong file Markdown này.
+
+Ghi chú:
+
+- Các tên class như `ReconApplication`, `StaticHtmlCrawler`, `EndpointRecord` được giữ nguyên để đối chiếu với source code.
+- Các bước xử lý, điều kiện và nhãn mũi tên được viết bằng tiếng Việt.
+- Tool này chỉ làm recon: thu thập, chuẩn hóa, gắn metadata, gom trùng và xuất báo cáo.
 
 ## 1. Luồng Tổng Quan
 
+Biểu đồ này cho thấy toàn bộ pipeline từ lúc người dùng chạy tool đến lúc sinh file kết quả.
+
 ```mermaid
 flowchart TD
-    A[User chạy run_recon.sh] --> B[ReconApplication trong cli.py]
-    B --> C[ConfigLoader đọc config.example.json]
-    C --> D[Áp dụng CLI options]
-    D --> E{Chạy nguồn dữ liệu nào?}
+    A[Người dùng chạy run_recon.sh] --> B[Ứng dụng chính: ReconApplication]
+    B --> C[Đọc cấu hình bằng ConfigLoader]
+    C --> D[Áp dụng tham số từ dòng lệnh]
+    D --> E{Nguồn dữ liệu nào được bật?}
 
-    E -->|Static| F[StaticHtmlCrawler]
-    E -->|Dynamic| G[DynamicCrawler]
-    E -->|Importer| H[ManualSeedImporter / HarImporter]
+    E -->|Crawler tĩnh| F[StaticHtmlCrawler]
+    E -->|Crawler động| G[DynamicCrawler]
+    E -->|Importer| H[ManualSeedImporter hoặc HarImporter]
 
-    F --> I[ReconNormalizer.make_record]
+    F --> I[Chuẩn hóa bằng ReconNormalizer]
     G --> I
     H --> I
 
     I --> J[EndpointRecord]
-    J --> K[RecordEnricher]
-    K --> L[EndpointDeduplicator]
-    L --> M[ReconExporter]
+    J --> K[Gắn metadata bằng RecordEnricher]
+    K --> L[Gom trùng bằng EndpointDeduplicator]
+    L --> M[Xuất file bằng ReconExporter]
 
     M --> N[inventory.json]
     M --> O[inventory.md]
@@ -32,108 +40,116 @@ flowchart TD
 
 ## 2. Luồng CLI Chính
 
+Biểu đồ này mô tả file `cli.py`. Đây là nơi điều phối các bước chính của tool.
+
 ```mermaid
 flowchart TD
-    A[__main__.py gọi main] --> B[ReconApplication.run]
-    B --> C[CliArgumentParser.build]
-    C --> D[Parse arguments]
-    D --> E[ConfigLoader.load]
-    E --> F[Apply CLI overrides]
-    F --> G[Collect records]
-    G --> H[Run crawlers]
-    G --> I[Run importers]
-    H --> J[Raw records]
+    A[__main__.py gọi hàm main] --> B[ReconApplication.run]
+    B --> C[Tạo parser tham số dòng lệnh]
+    C --> D[Đọc tham số người dùng nhập]
+    D --> E[Đọc file cấu hình]
+    E --> F[Ghi đè cấu hình bằng tham số CLI]
+    F --> G[Thu thập record]
+    G --> H[Chạy crawler]
+    G --> I[Chạy importer]
+    H --> J[Danh sách record thô]
     I --> J
-    J --> K[RecordEnricher.enrich_many]
-    K --> L[EndpointDeduplicator.dedupe]
-    L --> M[ReconExporter.export_all]
+    J --> K[Gắn nhãn candidate]
+    K --> L[Gom endpoint trùng]
+    L --> M[Xuất toàn bộ kết quả]
 ```
 
 ## 3. Luồng Static Crawler
 
+Static crawler đọc HTML không chạy JavaScript. Nó phù hợp với trang server-rendered, link HTML và form HTML.
+
 ```mermaid
 flowchart TD
-    A[StaticHtmlCrawler.crawl] --> B[Load seeds từ config]
-    B --> C[Đưa seed vào queue]
-    C --> D{Queue còn URL?}
-    D -->|Không| Z[Trả về records]
+    A[Bắt đầu StaticHtmlCrawler.crawl] --> B[Đọc seed từ config]
+    B --> C[Đưa seed vào hàng đợi]
+    C --> D{Hàng đợi còn URL?}
+    D -->|Không| Z[Trả về danh sách record]
     D -->|Có| E[Lấy URL tiếp theo]
 
-    E --> F{visited/depth/scope hợp lệ?}
-    F -->|Không| D
-    F -->|Có| G[HttpSession.get URL]
+    E --> F{URL đã thăm, quá sâu, hoặc ngoài scope?}
+    F -->|Có| D
+    F -->|Không| G[Gửi GET bằng HttpSession]
 
-    G --> H[ReconNormalizer.make_record cho page]
-    H --> I{Response là HTML?}
+    G --> H[Tạo record cho trang hiện tại]
+    H --> I{Response có phải HTML?}
 
     I -->|Không| D
-    I -->|Có| J[HtmlDiscoveryParser parse HTML]
-    J --> K[Lấy forms]
-    J --> L[Lấy links]
+    I -->|Có| J[Parse HTML bằng HtmlDiscoveryParser]
+    J --> K[Lấy danh sách form]
+    J --> L[Lấy danh sách link]
 
-    K --> M[Tạo EndpointRecord cho form]
-    L --> N[Normalize link]
-    N --> O{Link in scope và chưa visited?}
-    O -->|Có| P[Đưa link vào queue]
+    K --> M[Tạo record cho form]
+    L --> N[Chuẩn hóa link]
+    N --> O{Link còn trong scope và chưa thăm?}
+    O -->|Có| P[Đưa link vào hàng đợi]
     O -->|Không| D
     P --> D
 ```
 
 ## 4. Luồng Dynamic Crawler
 
+Dynamic crawler chạy Chromium bằng Playwright. Nó dùng để bắt request sinh ra bởi JavaScript, đặc biệt là fetch/XHR của SPA.
+
 ```mermaid
 flowchart TD
-    A[DynamicCrawler.crawl] --> B[Load Playwright]
+    A[Bắt đầu DynamicCrawler.crawl] --> B[Nạp Playwright]
     B --> C[Mở Chromium]
     C --> D[Tạo browser context]
-    D --> E[Đăng ký page.on response]
-    E --> F{Có auth form?}
+    D --> E[Đăng ký sự kiện bắt response]
+    E --> F{Có cấu hình login form?}
 
-    F -->|Có| G[Login form]
-    F -->|Không| H[Crawl seeds]
+    F -->|Có| G[Đăng nhập bằng form]
+    F -->|Không| H[Crawl các seed URL]
     G --> H
 
-    H --> I[page.goto seed URL]
+    H --> I[Đi tới seed bằng page.goto]
     I --> J[JavaScript trên trang gọi API]
-    J --> K[_on_response bắt response]
+    J --> K[Bắt response trong _on_response]
 
-    K --> L{Resource type hợp lệ?}
-    L -->|Không| X[Bỏ qua image/font/css/media]
-    L -->|Có| M{URL in scope?}
+    K --> L{Loại resource có cần giữ?}
+    L -->|Không| X[Bỏ qua image, font, css, media]
+    L -->|Có| M{URL có nằm trong scope?}
 
-    M -->|Không| Y[Bỏ qua ngoài scope]
-    M -->|Có| N[Đọc method/url/headers/body/status]
-    N --> O[ReconNormalizer.make_record]
-    O --> P[Thêm EndpointRecord vào records]
+    M -->|Không| Y[Bỏ qua URL ngoài phạm vi]
+    M -->|Có| N[Đọc method, URL, header, body, status]
+    N --> O[Tạo EndpointRecord]
+    O --> P[Lưu record vào danh sách]
 
-    I --> Q{auto_scroll bật?}
-    Q -->|Có| R[Scroll để kích hoạt lazy-load]
-    Q -->|Không| S[Run configured click actions]
+    I --> Q{Có bật auto scroll?}
+    Q -->|Có| R[Scroll để kích hoạt lazy-load API]
+    Q -->|Không| S[Click selector đã cấu hình]
     R --> S
-    S --> T[Lấy a href mới]
-    T --> U[Đưa URL mới vào queue]
+    S --> T[Lấy thêm link a href]
+    T --> U[Đưa URL mới vào hàng đợi]
 ```
 
-## 5. Luồng Normalize Dữ Liệu
+## 5. Luồng Chuẩn Hóa Dữ Liệu
+
+`ReconNormalizer` là nơi biến dữ liệu thô từ crawler/importer thành `EndpointRecord`.
 
 ```mermaid
 flowchart TD
-    A[Dữ liệu thô từ crawler/importer] --> B[ReconNormalizer.make_record]
-    B --> C[absolute_url]
-    C --> D[Bỏ cache-buster params]
-    D --> E[Sort query params]
-    E --> F[canonicalize_path]
+    A[Dữ liệu thô từ crawler hoặc importer] --> B[ReconNormalizer.make_record]
+    B --> C[Chuẩn hóa URL tuyệt đối]
+    C --> D[Bỏ tham số gây nhiễu như cache, timestamp, utm]
+    D --> E[Sắp xếp query param]
+    E --> F[Chuẩn hóa path để phục vụ dedupe]
 
-    B --> G[parse_query_params]
-    B --> H[parse_body_params]
-    H --> I{Content-Type JSON?}
-    I -->|Có| J[Flatten JSON thành json params]
-    I -->|Không| K[Parse form-urlencoded body]
+    B --> G[Parse query param]
+    B --> H[Parse body param]
+    H --> I{Body có phải JSON?}
+    I -->|Có| J[Flatten JSON thành json param]
+    I -->|Không| K[Parse body dạng form-urlencoded]
 
-    B --> L[mark_reflections]
-    L --> M{Sample value xuất hiện trong response?}
-    M -->|Có| N[Đánh dấu reflected/context]
-    M -->|Không| O[Không có reflection metadata]
+    B --> L[Kiểm tra reflection từ sample value]
+    L --> M{Sample value có xuất hiện trong response?}
+    M -->|Có| N[Ghi nhận reflected và context]
+    M -->|Không| O[Không có metadata reflection]
 
     F --> P[EndpointRecord]
     G --> P
@@ -145,81 +161,87 @@ flowchart TD
 
 ## 6. Luồng Lọc Dữ Liệu
 
+Biểu đồ này mô tả các lớp lọc dữ liệu: lọc scope, lọc resource, lọc tham số gây nhiễu và gom trùng endpoint.
+
 ```mermaid
 flowchart TD
     A[config.example.json] --> B[ScopePolicy]
-    B --> C[Lọc host/path]
+    B --> C[Lọc host và path được phép crawl]
 
     C --> D[StaticHtmlCrawler]
     C --> E[DynamicCrawler]
 
-    D --> F[Lọc visited/max_depth/max_pages/content-type]
-    E --> G[Lọc resource_types và scope]
+    D --> F[Lọc URL đã thăm, độ sâu, số trang, content-type]
+    E --> G[Lọc resource type và scope]
 
     F --> H[ReconNormalizer]
     G --> H
 
-    H --> I[Bỏ cache-buster params]
-    H --> J[Chuẩn hóa URL/path]
-    H --> K[Parse query/body/json params]
+    H --> I[Bỏ cache-buster param]
+    H --> J[Chuẩn hóa URL và path]
+    H --> K[Parse query, body, json param]
 
     I --> L[EndpointRecord]
     J --> L
     K --> L
 
     L --> M[RecordEnricher]
-    M --> N[Gắn candidate metadata]
+    M --> N[Gắn metadata candidate]
     N --> O[EndpointDeduplicator]
     O --> P[Gom endpoint trùng]
     P --> Q[ReconExporter]
 ```
 
-## 7. Luồng Dedupe
+## 7. Luồng Gom Trùng Endpoint
+
+`EndpointDeduplicator` tạo fingerprint cho từng endpoint. Nếu fingerprint giống nhau, record sẽ được merge.
 
 ```mermaid
 flowchart TD
     A[Danh sách EndpointRecord] --> B[EndpointDeduplicator]
     B --> C[Tạo fingerprint]
 
-    C --> D[method]
-    C --> E[scheme/host/port]
+    C --> D[HTTP method]
+    C --> E[scheme, host, port]
     C --> F[canonical_path]
-    C --> G[query/body/json param names]
+    C --> G[tên query, body, json param]
     C --> H[request content-type]
     C --> I[auth_context]
 
     C --> J{Fingerprint đã tồn tại?}
     J -->|Chưa| K[Thêm record mới]
-    J -->|Rồi| L[Merge record]
+    J -->|Rồi| L[Gộp record]
 
-    L --> M[Gộp statuses]
-    L --> N[Gộp params/sample_values]
-    L --> O[Gộp source_tools]
-    L --> P[Gộp examples/evidence]
+    L --> M[Gộp status code]
+    L --> N[Gộp param và sample value]
+    L --> O[Gộp nguồn phát hiện]
+    L --> P[Gộp URL mẫu và evidence]
     L --> Q[Gộp candidate_tests]
 
-    K --> R[Danh sách đã dedupe]
+    K --> R[Danh sách đã gom trùng]
     Q --> R
 ```
 
-## 8. Luồng Enrich Candidate
+## 8. Luồng Gắn Nhãn Candidate
+
+`RecordEnricher` chỉ gắn metadata gợi ý. Nó không kết luận có lỗ hổng và không gửi giá trị kiểm thử.
 
 ```mermaid
 flowchart TD
     A[EndpointRecord] --> B[RecordEnricher]
     B --> C[Duyệt từng Param]
 
-    C --> D{Param giống SQLi candidate?}
-    D -->|Có| E[Thêm sqli hoặc sqli_json]
-    D -->|Không| F[Không gắn SQLi]
+    C --> D{Param giống candidate SQLi?}
+    D -->|Có| E[Thêm nhãn sqli hoặc sqli_json]
+    D -->|Không| F[Không thêm nhãn SQLi]
 
-    C --> G{Param giống XSS candidate?}
-    G -->|Có| H[Thêm reflected/stored/api_xss_source]
-    G -->|Không| I[Không gắn XSS]
+    C --> G{Param giống candidate XSS?}
+    G -->|Có| H[Thêm nhãn reflected, stored hoặc api_xss_source]
+    G -->|Không| I[Không thêm nhãn XSS]
 
-    B --> J{Có form?}
-    J -->|Có| K[Thêm form_endpoint]
-    J -->|Không| L[Không thêm form_endpoint]
+    B --> J{Endpoint có form?}
+    J -->|Có| K[Thêm nhãn form_endpoint]
+    J -->|Không| L[Không thêm nhãn form_endpoint]
 
     E --> M[EndpointRecord đã enrich]
     H --> M
@@ -229,30 +251,34 @@ flowchart TD
     L --> M
 ```
 
-## 9. Luồng Export
+## 9. Luồng Xuất Kết Quả
+
+`ReconExporter` tạo các file kết quả từ danh sách record đã enrich và dedupe.
 
 ```mermaid
 flowchart TD
-    A[Records sau enrich và dedupe] --> B[ReconExporter.export_all]
+    A[Record sau enrich và dedupe] --> B[ReconExporter.export_all]
 
-    B --> C[export_json]
-    B --> D[export_markdown]
-    B --> E[export_params]
-    B --> F[export_test_plan]
+    B --> C[Xuất JSON đầy đủ]
+    B --> D[Xuất Markdown dễ đọc]
+    B --> E[Xuất danh sách param]
+    B --> F[Xuất kế hoạch kiểm thử thủ công]
 
-    C --> G[inventory.json đầy đủ]
-    D --> H[inventory.md dễ đọc]
-    E --> I[params.txt danh sách param]
-    F --> J[test_plan.md nhóm candidate]
+    C --> G[inventory.json]
+    D --> H[inventory.md]
+    E --> I[params.txt]
+    F --> J[test_plan.md]
 
-    F --> K[SQLi]
-    F --> L[Reflected XSS]
-    F --> M[Stored XSS]
-    F --> N[API/DOM XSS Source]
-    F --> O[Forms]
+    F --> K[Nhóm SQLi]
+    F --> L[Nhóm Reflected XSS]
+    F --> M[Nhóm Stored XSS]
+    F --> N[Nhóm API hoặc DOM XSS Source]
+    F --> O[Nhóm Forms]
 ```
 
 ## 10. Sơ Đồ Class Chính
+
+Biểu đồ này giữ tên class/method bằng tiếng Anh vì chúng trùng với source code. Phần quan hệ thể hiện class nào gọi hoặc phụ thuộc class nào.
 
 ```mermaid
 classDiagram
@@ -349,13 +375,15 @@ classDiagram
 
 ## 11. Luồng Dữ Liệu Rút Gọn
 
+Biểu đồ cuối cùng là bản rút gọn để nhớ nhanh: mọi nguồn dữ liệu đều được chuẩn hóa thành `EndpointRecord`, sau đó enrich, dedupe và export.
+
 ```mermaid
 flowchart LR
-    A[URL/Form/API/HAR/Manual seed] --> B[ReconNormalizer]
+    A[URL, form, API, HAR, manual seed] --> B[Chuẩn hóa dữ liệu]
     B --> C[EndpointRecord]
-    C --> D[Enrich]
-    D --> E[Dedupe]
-    E --> F[Export]
+    C --> D[Gắn metadata]
+    D --> E[Gom trùng]
+    E --> F[Xuất kết quả]
     F --> G[inventory.json]
     F --> H[test_plan.md]
 ```
