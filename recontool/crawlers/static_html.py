@@ -117,7 +117,7 @@ class StaticHtmlCrawler:
             return [], []
 
         content_type = result.headers.get("content-type", "")
-        records = [self._make_page_record(result.url, result.status, content_type, result.text, parent)]
+        records = [self._make_page_record(result.url, result.status, content_type, result.headers, result.text, parent)]
 
         if "html" not in content_type.lower():
             return records, []
@@ -132,6 +132,7 @@ class StaticHtmlCrawler:
         url: str,
         status: int,
         content_type: str,
+        response_headers: Dict[str, str],
         response_text: str,
         parent: str | None,
     ) -> EndpointRecord:
@@ -143,6 +144,8 @@ class StaticHtmlCrawler:
             auth_context=self.auth_context,
             status=status,
             response_content_type=content_type,
+            request_headers=self.session.headers,
+            response_headers=response_headers,
             response_text=response_text,
             discovered_from=parent,
         )

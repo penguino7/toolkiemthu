@@ -134,6 +134,8 @@ class ReconNormalizer:
         status: int | None = None,
         request_content_type: str = "",
         response_content_type: str = "",
+        request_headers: Dict[str, str] | None = None,
+        response_headers: Dict[str, str] | None = None,
         body: str | bytes | None = None,
         response_text: str | None = None,
         discovered_from: str | None = None,
@@ -152,6 +154,8 @@ class ReconNormalizer:
             auth_context=auth_context,
             request_content_type=request_content_type or "",
             response_content_type=response_content_type or "",
+            request_headers=self._normalize_headers(request_headers),
+            response_headers=self._normalize_headers(response_headers),
             statuses=[status] if status else [],
             source_tools=[source_tool],
             discovered_from=[discovered_from] if discovered_from else [],
@@ -256,6 +260,11 @@ class ReconNormalizer:
             cleaned = cleaned.rstrip("/")
         return cleaned
 
+    def _normalize_headers(self, headers: Dict[str, str] | None) -> Dict[str, str]:
+        if not headers:
+            return {}
+        return {str(key).lower(): str(value) for key, value in headers.items()}
+
 
 _DEFAULT_NORMALIZER = ReconNormalizer()
 
@@ -301,6 +310,8 @@ def make_record(
     status: int | None = None,
     request_content_type: str = "",
     response_content_type: str = "",
+    request_headers: Dict[str, str] | None = None,
+    response_headers: Dict[str, str] | None = None,
     body: str | bytes | None = None,
     response_text: str | None = None,
     discovered_from: str | None = None,
@@ -315,6 +326,8 @@ def make_record(
         status=status,
         request_content_type=request_content_type,
         response_content_type=response_content_type,
+        request_headers=request_headers,
+        response_headers=response_headers,
         body=body,
         response_text=response_text,
         discovered_from=discovered_from,

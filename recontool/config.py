@@ -30,7 +30,13 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "headless": True,
         "storage_state": "",
         "click_selectors": [],
-        "max_clicks_per_page": 0
+        "max_clicks_per_page": 0,
+        "deny_click_texts": ["logout", "delete", "remove", "submit", "sign out"],
+        "resource_types": ["document", "xhr", "fetch"],
+        "auto_scroll": False,
+        "scroll_steps": 0,
+        "scroll_delay_ms": 300,
+        "debug": False
     },
     "auth_profiles": [
         {

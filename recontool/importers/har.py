@@ -39,6 +39,8 @@ class HarImporter:
             status=response.get("status"),
             request_content_type=post_data.get("mimeType") or req_headers.get("content-type", ""),
             response_content_type=response_content.get("mimeType") or res_headers.get("content-type", ""),
+            request_headers=req_headers,
+            response_headers=res_headers,
             body=post_data.get("text"),
             response_text=response_content.get("text"),
         )

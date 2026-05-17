@@ -280,7 +280,13 @@ python -B -m recontool -c config.example.json --auth-profile admin
   "headless": true,
   "storage_state": "",
   "click_selectors": [],
-  "max_clicks_per_page": 0
+  "max_clicks_per_page": 0,
+  "deny_click_texts": ["logout", "delete", "remove", "submit", "sign out"],
+  "resource_types": ["document", "xhr", "fetch"],
+  "auto_scroll": false,
+  "scroll_steps": 0,
+  "scroll_delay_ms": 300,
+  "debug": false
 }
 ```
 
@@ -289,6 +295,17 @@ Nếu SPA cần click tab/nút mới sinh API:
 ```json
 "click_selectors": ["button[data-load]", ".tab-comments"],
 "max_clicks_per_page": 3
+```
+
+Ý nghĩa các option mới:
+
+```text
+resource_types      chỉ giữ document/xhr/fetch để tránh nhiễu image/font/css
+auto_scroll         bật scroll để kích hoạt lazy-load API
+scroll_steps        số lần scroll mỗi page
+scroll_delay_ms     thời gian chờ sau mỗi lần scroll
+deny_click_texts    tránh click nhầm logout/delete/submit
+debug               in summary dynamic crawl
 ```
 
 ## Kiểm Tra Nhanh Không Cần Target

@@ -54,7 +54,13 @@
     "headless": true,
     "storage_state": "",
     "click_selectors": [],
-    "max_clicks_per_page": 0
+    "max_clicks_per_page": 0,
+    "deny_click_texts": ["logout", "delete", "remove", "submit", "sign out"],
+    "resource_types": ["document", "xhr", "fetch"],
+    "auto_scroll": false,
+    "scroll_steps": 0,
+    "scroll_delay_ms": 300,
+    "debug": false
   },
   "imports": {
     "har_files": [],

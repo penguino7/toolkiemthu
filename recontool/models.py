@@ -102,6 +102,8 @@ class EndpointRecord:
     auth_context: str = "anonymous"  # Context khi phát hiện endpoint: anonymous, admin, user...
     request_content_type: str = ""  # Content-Type của request body, ví dụ: application/json.
     response_content_type: str = ""  # Content-Type của response, ví dụ: text/html hoặc application/json.
+    request_headers: Dict[str, str] = field(default_factory=dict)  # Header của request, ví dụ: user-agent, content-type, cookie.
+    response_headers: Dict[str, str] = field(default_factory=dict)  # Header của response, ví dụ: content-type, set-cookie, location.
     statuses: List[int] = field(default_factory=list)  # Các HTTP status đã thấy, ví dụ: 200, 302, 404.
     params: Dict[str, Param] = field(default_factory=dict)  # Danh sách param, key dạng query:q hoặc body:content.
     forms: List[Dict[str, Any]] = field(default_factory=list)  # Form HTML đã parse được: action, method, inputs.
@@ -131,6 +133,8 @@ class EndpointRecord:
             self.response_content_type = other.response_content_type  # Lấy response content-type từ record khác.
         if not self.request_content_type and other.request_content_type:  # Nếu record hiện tại thiếu request content-type.
             self.request_content_type = other.request_content_type  # Lấy request content-type từ record khác.
+        self.request_headers.update({k: v for k, v in other.request_headers.items() if v})  # Gộp request headers có giá trị.
+        self.response_headers.update({k: v for k, v in other.response_headers.items() if v})  # Gộp response headers có giá trị.
         for param in other.params.values():  # Duyệt toàn bộ param của record khác.
             self.add_param(param)  # Thêm hoặc merge param vào record hiện tại.
         self.forms = _unique(self.forms + other.forms)  # Gộp form đã thấy và bỏ trùng.
@@ -153,6 +157,8 @@ class EndpointRecord:
             "auth_context": self.auth_context,  # Context đăng nhập khi phát hiện.
             "request_content_type": self.request_content_type,  # Content-Type của request.
             "response_content_type": self.response_content_type,  # Content-Type của response.
+            "request_headers": self.request_headers,  # Header request đã ghi nhận.
+            "response_headers": self.response_headers,  # Header response đã ghi nhận.
             "statuses": self.statuses,  # Danh sách HTTP status đã thấy.
             "params": [p.to_dict() for p in sorted(self.params.values(), key=lambda p: p.key)],  # Param đã sort cho output ổn định.
             "forms": self.forms,  # Form HTML đã phát hiện.
