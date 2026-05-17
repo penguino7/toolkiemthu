@@ -40,6 +40,7 @@ class HttpExchange:
     headers: Dict[str, str]
     text: str
     elapsed_seconds: float
+    error: str | None = None
 
 
 @dataclass

@@ -47,7 +47,8 @@
     "error_based": true,
     "boolean_based": false,
     "time_based": false,
-    "time_threshold_seconds": 2.5
+    "time_threshold_seconds": 2.5,
+    "time_sleep_seconds": 3
   },
   "output_dir": "fuzz-output"
 }

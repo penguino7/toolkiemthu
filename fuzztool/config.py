@@ -50,6 +50,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "boolean_based": False,
         "time_based": False,
         "time_threshold_seconds": 2.5,
+        "time_sleep_seconds": 3,
     },
     "output_dir": "fuzz-output",
 }

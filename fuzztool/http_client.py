@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from http.cookiejar import CookieJar
+from socket import timeout as SocketTimeout
 from typing import Dict
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
@@ -57,8 +58,10 @@ class FuzzHttpClient:
                 return self._exchange(method, response.geturl(), response.status, response.headers.items(), response.read(), started)
         except HTTPError as error:
             return self._exchange(method, error.geturl(), error.code, error.headers.items(), error.read(), started)
+        except (TimeoutError, SocketTimeout) as error:
+            return self._error_exchange(method, url, started, f"timeout: {error}")
         except URLError as error:
-            raise RuntimeError(f"Request failed for {url}: {error}") from error
+            return self._error_exchange(method, url, started, f"url_error: {error.reason}")
 
     def _exchange(self, method: str, url: str, status: int, headers, raw: bytes, started: float) -> HttpExchange:
         header_dict = {key.lower(): value for key, value in headers}
@@ -71,6 +74,17 @@ class FuzzHttpClient:
             headers=header_dict,
             text=text,
             elapsed_seconds=time.perf_counter() - started,
+        )
+
+    def _error_exchange(self, method: str, url: str, started: float, error: str) -> HttpExchange:
+        return HttpExchange(
+            method=method.upper(),
+            url=url,
+            status=0,
+            headers={},
+            text="",
+            elapsed_seconds=time.perf_counter() - started,
+            error=error,
         )
 
     def _decode(self, raw: bytes, content_type: str) -> str:
