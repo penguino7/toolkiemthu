@@ -35,10 +35,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "xss": {
         "enabled": False,
+        "payload_mode": "proof",
         "reflected": True,
         "stored": False,
         "dom": False,
         "stored_check_paths": [],
+        "dom_headless": True,
+        "dom_timeout_ms": 8000,
+        "post_load_wait_ms": 500,
     },
     "sqli": {
         "enabled": False,

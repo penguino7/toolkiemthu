@@ -19,6 +19,7 @@ Mặc định fuzztool:
 - Có `--dry-run` để liệt kê target mà không gửi request.
 - POST/body/json chỉ chạy khi bật `--include-post`.
 - XSS dùng payload proof-of-execution như `<script>alert("FUZZXSS_xxxxxxxx")</script>`.
+- XSS chỉ được ghi vào `findings` khi Playwright bắt được dialog chứa marker, không ghi các payload chỉ phản xạ/render nhưng chưa thực thi.
 - Stored XSS, DOM XSS, boolean/time SQLi là tùy chọn.
 
 ## Lệnh Mẫu
@@ -73,6 +74,8 @@ bash run_fuzz.sh recon-output/inventory.json --sqli --sqli-boolean --sqli-time
 fuzz-output/findings.json
 fuzz-output/findings.md
 ```
+
+`findings` là kết quả đã có bằng chứng. Với XSS, bằng chứng hợp lệ là browser thật chạy payload và tạo `alert()`/dialog có marker tương ứng. Nếu payload chỉ xuất hiện trong HTML/JSON/DOM nhưng không thực thi JavaScript thì tool bỏ qua, không ghi vào `findings`.
 
 ## Cấu Trúc Chính
 

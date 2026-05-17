@@ -2,10 +2,11 @@ from __future__ import annotations
 
 
 class XssDetector:
-    """Detector XSS mức recon/fuzz nhẹ.
+    """Detector phu tro de tim marker trong HTTP response.
 
-    Detector này tìm marker phản xạ trong response/DOM. Nó không khẳng định chắc
-    chắn có XSS thực thi JavaScript; finding nên được hiểu là candidate cần xác minh.
+    Detector nay khong tu ket luan XSS. No chi giup reflected scanner loc ra
+    response co marker truoc khi BrowserXssVerifier mo browser de xac minh
+    payload co thuc thi JavaScript hay khong.
     """
 
     def reflected(self, response_text: str, marker: str, content_type: str = "") -> tuple[bool, str]:

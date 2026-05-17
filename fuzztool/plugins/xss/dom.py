@@ -5,14 +5,12 @@ from typing import List
 
 from ...models import Finding, FuzzTarget
 from ...mutator import RequestMutator
+from .browser_verifier import BrowserXssVerifier
 from .payload_factory import XssPayloadFactory
 
 
 class DomXssScanner:
-    """DOM XSS scanner tùy chọn bằng Playwright.
-
-    Scanner này dùng payload thật và bắt `alert()` qua sự kiện dialog.
-    """
+    """DOM XSS scanner bang Playwright, chi ghi khi payload thuc thi."""
 
     def __init__(self, config: dict, mutator: RequestMutator | None = None) -> None:
         self.config = config
@@ -23,55 +21,36 @@ class DomXssScanner:
         if target.param_location != "query":
             return []
 
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError as error:
-            raise RuntimeError("Playwright chưa được cài, không thể chạy DOM XSS scanner") from error
-
         marker = self._marker(target)
-        timeout_ms = int(self.config.get("xss", {}).get("dom_timeout_ms", 8000))
-        headless = bool(self.config.get("xss", {}).get("dom_headless", True))
         payloads = self.payload_factory.proof_payloads(marker)
         findings: List[Finding] = []
 
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=headless)
-            page = browser.new_page()
-            dialogs: List[str] = []
-
-            def on_dialog(dialog) -> None:
-                dialogs.append(dialog.message)
-                dialog.dismiss()
-
-            page.on("dialog", on_dialog)
-
+        with BrowserXssVerifier(self.config) as verifier:
             for payload in payloads:
                 _, url, _, _ = self.mutator.mutate(target, payload)
-                dialogs.clear()
-                page.goto(url, wait_until="networkidle", timeout=timeout_ms)
-                html = page.content()
-                executed = any(marker in message for message in dialogs)
-                rendered = marker in html
-                if executed or rendered:
-                    findings.append(
-                        Finding(
-                            vuln_type="xss",
-                            subtype="dom",
-                            severity="high" if executed else "medium",
-                            target=target,
-                            payload=payload,
-                            evidence="alert_dialog_executed" if executed else "marker_rendered_in_dom",
-                            request_url=url,
-                            status=None,
-                            details={
-                                "marker": marker,
-                                "dialog_messages": list(dialogs),
-                                "scanner": "playwright_dom",
-                            },
-                        )
-                    )
+                proof = verifier.verify_url(url, marker)
+                if not proof.executed:
+                    continue
 
-            browser.close()
+                findings.append(
+                    Finding(
+                        vuln_type="xss",
+                        subtype="dom",
+                        severity="high",
+                        target=target,
+                        payload=payload,
+                        evidence="alert_dialog_executed",
+                        request_url=proof.final_url,
+                        status=None,
+                        details={
+                            "marker": marker,
+                            "dialog_messages": proof.dialog_messages,
+                            "rendered_in_browser": proof.rendered,
+                            "browser_error": proof.error,
+                            "scanner": "playwright_dom",
+                        },
+                    )
+                )
 
         return findings
 

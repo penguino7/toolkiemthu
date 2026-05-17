@@ -119,6 +119,8 @@ fuzz-output/findings.json
 fuzz-output/findings.md
 ```
 
+`findings` chỉ chứa kết quả đã có bằng chứng. Với XSS, tool dùng Playwright mở URL trong browser thật và chỉ ghi khi bắt được `alert()`/dialog chứa marker của payload. Payload chỉ được phản xạ trong HTML/JSON hoặc chỉ render ra DOM nhưng không thực thi sẽ không được ghi vào `findings`.
+
 ## Cấu Trúc Repo
 
 ```text
@@ -286,7 +288,8 @@ Phần XSS:
   "stored": false,
   "dom": false,
   "dom_headless": true,
-  "dom_timeout_ms": 8000
+  "dom_timeout_ms": 8000,
+  "post_load_wait_ms": 500
 }
 ```
 
@@ -346,7 +349,8 @@ Recontool:
 
 Fuzztool:
 
-- Finding là candidate, vẫn cần xác minh thủ công.
+- XSS finding là kết quả đã được browser xác nhận bằng dialog có marker, không còn là candidate phản xạ đơn thuần.
+- SQLi finding vẫn nên được đọc cùng evidence vì boolean/time có thể nhiễu nếu target phản hồi không ổn định.
 - Stored XSS cần cấu hình `stored_check_paths`.
 - DOM XSS cần Playwright.
 - Boolean/time SQLi mặc định tắt vì dễ nhiễu hoặc chậm.

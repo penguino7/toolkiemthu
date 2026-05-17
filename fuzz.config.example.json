@@ -35,7 +35,8 @@
     "dom": false,
     "stored_check_paths": [],
     "dom_headless": true,
-    "dom_timeout_ms": 8000
+    "dom_timeout_ms": 8000,
+    "post_load_wait_ms": 500
   },
   "sqli": {
     "enabled": false,
