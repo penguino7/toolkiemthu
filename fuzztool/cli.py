@@ -54,6 +54,8 @@ class FuzzApplication:
 
         targets = InventoryLoader(config).targets_for(args.inventory, selected)
         targets = self._filter_post_targets(targets, config)
+        self._print_scanner_summary(config)
+        self._print_safety_warnings(config)
         print(f"[*] Selected targets: {len(targets)}")
 
         if config.get("safety", {}).get("dry_run", False):
@@ -80,14 +82,22 @@ class FuzzApplication:
         if args.dry_run:
             config.setdefault("safety", {})["dry_run"] = True
 
-        if args.xss or args.xss_reflected or args.xss_stored or args.xss_dom:
-            config.setdefault("xss", {})["enabled"] = True
-        if args.xss_reflected:
+        selected_xss_type = args.xss_reflected or args.xss_stored or args.xss_dom
+        if args.xss or selected_xss_type:
+            xss_config = config.setdefault("xss", {})
+            xss_config["enabled"] = True
+
+        if args.xss:
+            # --xss la che do tien loi: chay reflected + DOM. Stored XSS chi
+            # tu bat khi nguoi dung cho phep fuzz POST/body bang --include-post.
             config.setdefault("xss", {})["reflected"] = True
-        if args.xss_stored:
-            config.setdefault("xss", {})["stored"] = True
-        if args.xss_dom:
             config.setdefault("xss", {})["dom"] = True
+            if args.include_post or args.xss_stored:
+                config.setdefault("xss", {})["stored"] = True
+        elif selected_xss_type:
+            config.setdefault("xss", {})["reflected"] = bool(args.xss_reflected)
+            config.setdefault("xss", {})["stored"] = bool(args.xss_stored)
+            config.setdefault("xss", {})["dom"] = bool(args.xss_dom)
 
         if args.sqli or args.sqli_error or args.sqli_boolean or args.sqli_time:
             config.setdefault("sqli", {})["enabled"] = True
@@ -132,6 +142,37 @@ class FuzzApplication:
         except RequestBudgetExceeded as error:
             print(f"[!] {error}")
         return findings
+
+    def _print_scanner_summary(self, config: dict) -> None:
+        if config.get("xss", {}).get("enabled", False):
+            xss = config.get("xss", {})
+            active = []
+            if xss.get("reflected", False):
+                active.append("reflected")
+            if xss.get("dom", False):
+                active.append("dom")
+            if xss.get("stored", False):
+                active.append("stored")
+            print(f"[*] XSS scanners: {', '.join(active) if active else 'none'}")
+
+        if config.get("sqli", {}).get("enabled", False):
+            sqli = config.get("sqli", {})
+            active = []
+            if sqli.get("error_based", False):
+                active.append("error-based")
+            if sqli.get("boolean_based", False):
+                active.append("boolean-based")
+            if sqli.get("time_based", False):
+                active.append("time-based")
+            print(f"[*] SQLi scanners: {', '.join(active) if active else 'none'}")
+
+    def _print_safety_warnings(self, config: dict) -> None:
+        include_post = bool(config.get("safety", {}).get("include_post", False))
+        stored_enabled = bool(config.get("xss", {}).get("stored", False))
+        if stored_enabled and not include_post:
+            print("[!] Stored XSS da bat nhung POST/body/json dang bi chan. Them --include-post de chay stored.")
+        if stored_enabled and include_post and not config.get("xss", {}).get("stored_check_paths", []):
+            print("[!] Stored XSS can stored_check_paths de biet URL nao se mo lai de xac minh payload da luu.")
 
     def _is_xss_target(self, target: FuzzTarget) -> bool:
         tests = set(target.candidate_tests)

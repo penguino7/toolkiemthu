@@ -20,7 +20,8 @@ Mặc định fuzztool:
 - POST/body/json chỉ chạy khi bật `--include-post`.
 - XSS dùng payload proof-of-execution như `<script>alert("FUZZXSS_xxxxxxxx")</script>`.
 - XSS chỉ được ghi vào `findings` khi Playwright bắt được dialog chứa marker, không ghi các payload chỉ phản xạ/render nhưng chưa thực thi.
-- Stored XSS, DOM XSS, boolean/time SQLi là tùy chọn.
+- `--xss` chạy reflected XSS và DOM XSS. Stored XSS sẽ chạy thêm khi có `--include-post`.
+- Boolean/time SQLi là tùy chọn.
 
 ## Lệnh Mẫu
 
@@ -30,10 +31,22 @@ Chỉ xem target, không gửi request:
 bash run_fuzz.sh recon-output/inventory.json --xss --sqli --dry-run
 ```
 
-Chạy XSS reflected mặc định:
+Chạy XSS GET/query, gồm reflected XSS và DOM XSS:
 
 ```bash
 bash run_fuzz.sh recon-output/inventory.json --xss
+```
+
+Chạy thêm Stored XSS qua POST/body/json:
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --xss --include-post
+```
+
+Stored XSS cần cấu hình `stored_check_paths` trong `fuzz.config.example.json`, vì tool phải biết sau khi submit payload thì nên mở URL nào để xác minh payload đã được lưu và thực thi:
+
+```json
+"stored_check_paths": ["/news.php?id=1", "/spa/comments/1"]
 ```
 
 Payload XSS mặc định là payload thật có marker bên trong:
@@ -56,10 +69,10 @@ Cho phép fuzz POST body/json:
 bash run_fuzz.sh recon-output/inventory.json --xss --sqli --include-post
 ```
 
-Chạy thêm DOM XSS:
+Chạy riêng DOM XSS:
 
 ```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --xss-dom
+bash run_fuzz.sh recon-output/inventory.json --xss-dom
 ```
 
 Chạy thêm SQLi boolean/time:
