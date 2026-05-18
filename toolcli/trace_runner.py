@@ -5,6 +5,9 @@ from typing import Any, List
 from urllib.parse import parse_qsl, urlparse
 
 
+PENDING_FUZZ_PAYLOAD: dict[str, str] = {}
+
+
 def log_event(event: str, **fields: Any) -> None:
     """In log theo format ngắn, dễ nhìn trong terminal."""
 
@@ -55,6 +58,56 @@ def log_event(event: str, **fields: Any) -> None:
     print(" ".join(parts), flush=True)
 
 
+def print_transaction(
+    method: Any,
+    url: Any,
+    body: Any,
+    response: Any,
+    payload_info: dict[str, str] | None = None,
+) -> None:
+    """In một cặp request/response thành một block riêng."""
+
+    print("")
+    print("┌" + "─" * 70, flush=True)
+    if payload_info:
+        print(f"│ PAYLOAD  {payload_info.get('target', '-')}", flush=True)
+        print(f"│          {short_text(payload_info.get('payload', ''), 92)}", flush=True)
+        print("│", flush=True)
+
+    print(f"│ REQUEST  {str(method).upper()} {summarize_url(url)}", flush=True)
+    if body:
+        print(f"│ BODY     {short_text(body, 92)}", flush=True)
+
+    status = getattr(response, "status", "-")
+    elapsed = getattr(response, "elapsed_seconds", None)
+    elapsed_text = f"{elapsed:.3f}s" if isinstance(elapsed, (int, float)) else "-"
+    size_text = format_size(len(getattr(response, "text", "") or ""))
+    print(f"│ RESPONSE status={status} time={elapsed_text} size={size_text}", flush=True)
+
+    error = getattr(response, "error", None)
+    if error:
+        print(f"│ ERROR    {short_text(error, 110)}", flush=True)
+
+    print("└" + "─" * 70, flush=True)
+
+
+def print_recon_transaction(method: Any, url: Any, body: Any, result: Any) -> None:
+    print("")
+    print("┌" + "─" * 70, flush=True)
+    print(f"│ REQUEST  {str(method).upper()} {summarize_url(url)}", flush=True)
+    if body:
+        print(f"│ BODY     {short_text(body, 92)}", flush=True)
+    print(
+        "│ RESPONSE status={status} size={size} type={content_type}".format(
+            status=getattr(result, "status", "-"),
+            size=format_size(len(getattr(result, "text", "") or "")),
+            content_type=short_text(getattr(result, "headers", {}).get("content-type", ""), 45),
+        ),
+        flush=True,
+    )
+    print("└" + "─" * 70, flush=True)
+
+
 def short_text(value: Any, limit: int = 240) -> str:
     text = str(value).replace("\n", "\\n").replace("\r", "")
     if len(text) <= limit:
@@ -100,20 +153,12 @@ def patch_recon_logging() -> None:
     original_request = HttpSession.request
 
     def traced_request(self, url, method="GET", body=None, headers=None):
-        log_event("REQUEST", tool="recon", method=method.upper(), url=url, body=body)
         try:
             result = original_request(self, url, method=method, body=body, headers=headers)
         except Exception as error:
             log_event("ERROR", tool="recon", where="request", error=error)
             raise
-        log_event(
-            "RESPONSE",
-            tool="recon",
-            status=result.status,
-            url=result.url,
-            content_type=result.headers.get("content-type", ""),
-            length=len(result.text),
-        )
+        print_recon_transaction(method, url, body, result)
         return result
 
     HttpSession.request = traced_request
@@ -125,16 +170,14 @@ def patch_recon_logging() -> None:
     def traced_on_response(self, response):
         request = response.request
         before_count = len(self.records)
-        log_event(
-            "BROWSER_REQUEST",
-            tool="recon",
-            method=request.method,
-            url=request.url,
-            resource_type=request.resource_type,
-        )
         original_on_response(self, response)
         kept = len(self.records) > before_count
-        log_event("BROWSER_RESPONSE", tool="recon", status=response.status, kept=kept, url=request.url)
+        print("")
+        print("┌" + "─" * 70, flush=True)
+        print(f"│ BROWSER  {request.method} {summarize_url(request.url)}", flush=True)
+        print(f"│ TYPE     {request.resource_type}", flush=True)
+        print(f"│ RESPONSE status={response.status} kept={kept}", flush=True)
+        print("└" + "─" * 70, flush=True)
 
     DynamicCrawler._on_response = traced_on_response
 
@@ -149,13 +192,8 @@ def patch_fuzz_logging() -> None:
 
     def traced_mutate(self, target, payload):
         method, url, body, headers = original_mutate(self, target, payload)
-        log_event(
-            "PAYLOAD",
-            tool="fuzz",
-            target=target.key,
-            param=f"{target.param_location}:{target.param_name}",
-            payload=payload,
-        )
+        PENDING_FUZZ_PAYLOAD["target"] = target.key
+        PENDING_FUZZ_PAYLOAD["payload"] = payload
         return method, url, body, headers
 
     RequestMutator.mutate = traced_mutate
@@ -167,20 +205,14 @@ def patch_fuzz_logging() -> None:
             log_event("ERROR", tool="fuzz", where="send", error=f"Reached max_requests={self.max_requests}")
             return original_send(self, method, url, body=body, headers=headers)
 
-        log_event("REQUEST", tool="fuzz", method=method.upper(), url=url, body=body)
+        payload_info = dict(PENDING_FUZZ_PAYLOAD)
+        PENDING_FUZZ_PAYLOAD.clear()
         try:
             response = original_send(self, method, url, body=body, headers=headers)
         except Exception as error:
             log_event("ERROR", tool="fuzz", where="send", error=error)
             raise
-        log_event(
-            "RESPONSE",
-            tool="fuzz",
-            status=response.status,
-            elapsed=f"{response.elapsed_seconds:.3f}s",
-            length=len(response.text),
-            error=response.error,
-        )
+        print_transaction(method, url, body, response, payload_info)
         return response
 
     FuzzHttpClient.send = traced_send
