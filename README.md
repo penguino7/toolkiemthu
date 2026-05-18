@@ -63,9 +63,10 @@ Menu sẽ hiện các lựa chọn bằng số:
 Mặc định launcher bật `Trace log`. Khi chạy fuzz/recon, terminal sẽ hiện log realtime:
 
 ```text
-[PAYLOAD] tool=fuzz target=GET /search.php query:q payload=test'
-[REQUEST] tool=fuzz method=GET url=http://127.0.0.1:12001/search.php?q=test%27
-[RESPONSE] tool=fuzz status=500 elapsed=0.041s length=923
+[PAYLOAD ] GET /search.php query:q
+           value: test'
+[REQUEST ] GET /search.php?q=test'
+[RESPONSE] status=500 time=0.041s size=923B
 ```
 
 Log mỗi lần chạy được lưu vào thư mục:

@@ -2,10 +2,50 @@ from __future__ import annotations
 
 import sys
 from typing import Any, List
+from urllib.parse import parse_qsl, urlparse
 
 
 def log_event(event: str, **fields: Any) -> None:
-    """In một dòng log dễ đọc cho terminal launcher."""
+    """In log theo format ngắn, dễ nhìn trong terminal."""
+
+    if event == "PAYLOAD":
+        print("", flush=True)
+        print(f"[PAYLOAD ] {compact_target(fields.get('target', ''))}", flush=True)
+        print(f"           value: {short_text(fields.get('payload', ''), 90)}", flush=True)
+        return
+
+    if event in {"REQUEST", "BROWSER_REQUEST"}:
+        label = "BROWSER " if event == "BROWSER_REQUEST" else "REQUEST "
+        method = str(fields.get("method", "")).upper()
+        url = summarize_url(fields.get("url", ""))
+        print(f"[{label}] {method} {url}", flush=True)
+        if fields.get("body"):
+            print(f"           body: {short_text(fields.get('body'), 90)}", flush=True)
+        if fields.get("resource_type"):
+            print(f"           type: {fields.get('resource_type')}", flush=True)
+        return
+
+    if event in {"RESPONSE", "BROWSER_RESPONSE"}:
+        label = "BROWSER " if event == "BROWSER_RESPONSE" else "RESPONSE"
+        status = fields.get("status", "-")
+        elapsed = fields.get("elapsed")
+        length = format_size(fields.get("length"))
+        kept = fields.get("kept")
+        parts = [f"[{label}]", f"status={status}"]
+        if elapsed:
+            parts.append(f"time={elapsed}")
+        if length:
+            parts.append(f"size={length}")
+        if kept not in (None, ""):
+            parts.append(f"kept={kept}")
+        print(" ".join(parts), flush=True)
+        if fields.get("error"):
+            print(f"           error: {short_text(fields.get('error'), 120)}", flush=True)
+        return
+
+    if event == "ERROR":
+        print(f"[ERROR   ] {fields.get('where', '-')}: {short_text(fields.get('error', ''), 140)}", flush=True)
+        return
 
     parts = [f"[{event}]"]
     for key, value in fields.items():
@@ -20,6 +60,36 @@ def short_text(value: Any, limit: int = 240) -> str:
     if len(text) <= limit:
         return text
     return text[:limit] + "...<trimmed>"
+
+
+def compact_target(value: Any) -> str:
+    text = str(value)
+    return short_text(text, 96)
+
+
+def summarize_url(value: Any, limit: int = 110) -> str:
+    parsed = urlparse(str(value))
+    path = parsed.path or str(value)
+    if not parsed.query:
+        return short_text(path, limit)
+
+    pairs = []
+    for name, raw_value in parse_qsl(parsed.query, keep_blank_values=True):
+        pairs.append(f"{name}={short_text(raw_value, 34)}")
+
+    return short_text(f"{path}?{'&'.join(pairs)}", limit)
+
+
+def format_size(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    try:
+        size = int(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if size < 1024:
+        return f"{size}B"
+    return f"{size / 1024:.1f}KB"
 
 
 def patch_recon_logging() -> None:
@@ -93,6 +163,10 @@ def patch_fuzz_logging() -> None:
     original_send = FuzzHttpClient.send
 
     def traced_send(self, method, url, body=None, headers=None):
+        if self.max_requests is not None and self.request_count >= self.max_requests:
+            log_event("ERROR", tool="fuzz", where="send", error=f"Reached max_requests={self.max_requests}")
+            return original_send(self, method, url, body=body, headers=headers)
+
         log_event("REQUEST", tool="fuzz", method=method.upper(), url=url, body=body)
         try:
             response = original_send(self, method, url, body=body, headers=headers)
