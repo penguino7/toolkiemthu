@@ -37,6 +37,43 @@ Nếu Kali thiếu thư viện hệ thống cho Chromium:
 python -m playwright install-deps chromium
 ```
 
+## Chạy Bằng Menu CLI
+
+Nếu không muốn gõ lệnh dài, dùng launcher terminal:
+
+```bash
+bash run_tool.sh
+```
+
+Menu sẽ hiện các lựa chọn bằng số:
+
+```text
+1. Chạy recon tĩnh
+2. Chạy recon tĩnh + dynamic Playwright
+3. Chạy fuzz XSS
+4. Chạy fuzz SQLi
+5. Chạy fuzz XSS + SQLi
+6. Dry-run fuzz all
+7. Xem tóm tắt inventory
+8. Xem tóm tắt findings
+9. Cài đặt
+0. Thoát
+```
+
+Mặc định launcher bật `Trace log`. Khi chạy fuzz/recon, terminal sẽ hiện log realtime:
+
+```text
+[PAYLOAD] tool=fuzz target=GET /search.php query:q payload=test'
+[REQUEST] tool=fuzz method=GET url=http://127.0.0.1:12001/search.php?q=test%27
+[RESPONSE] tool=fuzz status=500 elapsed=0.041s length=923
+```
+
+Log mỗi lần chạy được lưu vào thư mục:
+
+```text
+runs/
+```
+
 ## Chạy Recon
 
 Giả sử lab chạy tại:
@@ -137,7 +174,13 @@ fuzz-output/findings.md
 ├── requirements.txt
 ├── run_recon.sh
 ├── run_fuzz.sh
+├── run_tool.sh
 ├── seeds.example.txt
+├── toolcli/
+│   ├── __main__.py
+│   ├── menu.py
+│   ├── runner.py
+│   └── trace_runner.py
 ├── recontool/
 │   ├── __main__.py
 │   ├── RECON_FLOW.md
