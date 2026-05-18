@@ -9,7 +9,7 @@
   },
   "safety": {
     "include_post": false,
-    "max_requests": 300,
+    "max_requests": 800,
     "delay_seconds": 0.05,
     "dry_run": false,
     "skip_param_names": [

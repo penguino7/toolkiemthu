@@ -120,8 +120,8 @@ class FuzzApplication:
             config.setdefault("sqli", {})["time_based"] = True
             config.setdefault("safety", {})["include_post"] = True
             if args.max_requests is None:
-                current_limit = int(config.setdefault("safety", {}).get("max_requests", 300))
-                config.setdefault("safety", {})["max_requests"] = max(current_limit, 300)
+                current_limit = int(config.setdefault("safety", {}).get("max_requests", 800))
+                config.setdefault("safety", {})["max_requests"] = max(current_limit, 800)
             return
 
         if selected_sqli_type:

@@ -5,6 +5,7 @@ from typing import List
 from ...http_client import FuzzHttpClient
 from ...models import Finding, FuzzTarget, HttpExchange
 from ...mutator import RequestMutator
+from .payload_factory import SqliPayloadFactory
 
 
 class TimeBasedSqliScanner:
@@ -17,6 +18,7 @@ class TimeBasedSqliScanner:
         sqli_config = config.get("sqli", {})
         self.threshold = float(sqli_config.get("time_threshold_seconds", 2.5))
         self.sleep_seconds = int(sqli_config.get("time_sleep_seconds", 3))
+        self.payload_factory = SqliPayloadFactory(sleep_seconds=self.sleep_seconds)
 
     def scan(self, target: FuzzTarget) -> List[Finding]:
         baseline = self._send_baseline(target)
@@ -69,14 +71,4 @@ class TimeBasedSqliScanner:
         return self.client.send(method, url, body=body, headers=headers)
 
     def _payloads(self, target: FuzzTarget) -> List[str]:
-        sample = target.sample_value
-        sleep = self.sleep_seconds
-        if target.type_hint in {"int", "float"}:
-            return [
-                f"{sample} AND SLEEP({sleep})",
-                f"{sample}' AND SLEEP({sleep})-- -",
-            ]
-        return [
-            f"{sample}' AND SLEEP({sleep})-- -",
-            f"{sample}' OR SLEEP({sleep})-- -",
-        ]
+        return self.payload_factory.time_payloads(target)

@@ -6,6 +6,7 @@ from ...http_client import FuzzHttpClient
 from ...models import Finding, FuzzTarget
 from ...mutator import RequestMutator
 from .detector import SqliDetector
+from .payload_factory import SqliPayloadFactory
 
 
 class ErrorBasedSqliScanner:
@@ -15,6 +16,7 @@ class ErrorBasedSqliScanner:
         self.client = client
         self.mutator = mutator or RequestMutator()
         self.detector = SqliDetector()
+        self.payload_factory = SqliPayloadFactory()
 
     def scan(self, target: FuzzTarget) -> List[Finding]:
         for payload in self._payloads(target):
@@ -43,14 +45,4 @@ class ErrorBasedSqliScanner:
         return self.client.send(method, url, body=body, headers=headers)
 
     def _payloads(self, target: FuzzTarget) -> List[str]:
-        sample = target.sample_value
-        error_func = "extractvalue(1,concat(0x7e,database()))"
-        if target.type_hint in {"int", "float"}:
-            return [
-                f"{sample}'",
-                f"{sample} AND {error_func}",
-            ]
-        return [
-            f"{sample}'",
-            f"{sample}' AND {error_func}-- -",
-        ]
+        return self.payload_factory.error_payloads(target)

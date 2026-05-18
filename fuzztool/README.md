@@ -57,6 +57,14 @@ Chạy đủ nhóm SQLi, gồm error-based, boolean-based và time-based:
 bash run_fuzz.sh recon-output/inventory.json --sqli
 ```
 
+Payload SQLi được đọc từ:
+
+```text
+fuzztool/plugins/sqli/payloads.txt
+```
+
+File này chia payload theo nhóm `error`, `boolean` và `time`. Có thể thêm payload mới bằng template `{sample}` và `{sleep}` mà không cần sửa code scanner.
+
 Chạy đầy đủ cả XSS và SQLi:
 
 ```bash

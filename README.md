@@ -102,6 +102,8 @@ Chạy SQLi:
 bash run_fuzz.sh recon-output/inventory.json --sqli
 ```
 
+Payload SQLi nằm trong `fuzztool/plugins/sqli/payloads.txt`, chia theo nhóm error-based, boolean-based và time-based. Scanner sẽ tự thay `{sample}` bằng giá trị mẫu của param và `{sleep}` bằng số giây delay trong config.
+
 Chạy cả XSS và SQLi:
 
 ```bash
@@ -276,7 +278,7 @@ Phần safety:
 ```json
 "safety": {
   "include_post": false,
-  "max_requests": 100,
+  "max_requests": 800,
   "delay_seconds": 0.05,
   "dry_run": false
 }

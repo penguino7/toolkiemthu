@@ -15,7 +15,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "safety": {
         "include_post": False,
-        "max_requests": 300,
+        "max_requests": 800,
         "delay_seconds": 0.05,
         "dry_run": False,
         "skip_param_names": [
