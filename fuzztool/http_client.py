@@ -25,6 +25,8 @@ class FuzzHttpClient:
     max_requests: int | None = None
     delay_seconds: float = 0.0
     request_count: int = 0
+    error_count: int = 0
+    timeout_count: int = 0
 
     def __post_init__(self) -> None:
         self.opener = build_opener(HTTPCookieProcessor(self.cookie_jar))
@@ -77,6 +79,9 @@ class FuzzHttpClient:
         )
 
     def _error_exchange(self, method: str, url: str, started: float, error: str) -> HttpExchange:
+        self.error_count += 1
+        if error.startswith("timeout:"):
+            self.timeout_count += 1
         return HttpExchange(
             method=method.upper(),
             url=url,
@@ -89,7 +94,7 @@ class FuzzHttpClient:
 
     def _decode(self, raw: bytes, content_type: str) -> str:
         lowered = (content_type or "").lower()
-        if not any(token in lowered for token in ["text/", "html", "json", "javascript", "xml"]):
+        if lowered and not any(token in lowered for token in ["text/", "html", "json", "javascript", "xml"]):
             return ""
         charset = "utf-8"
         if "charset=" in lowered:

@@ -68,6 +68,9 @@ class FuzzApplication:
         output_dir = config.get("output_dir", "fuzz-output")
         self.reporter.export(findings, output_dir)
         print(f"[*] Findings: {len(findings)}")
+        print(f"[*] Requests sent: {client.request_count}")
+        if client.error_count:
+            print(f"[!] Request errors: {client.error_count} (timeouts: {client.timeout_count})")
         print(f"[*] Wrote: {Path(output_dir) / 'findings.json'}")
         print(f"[*] Wrote: {Path(output_dir) / 'findings.md'}")
         return 0
@@ -116,6 +119,9 @@ class FuzzApplication:
             config.setdefault("sqli", {})["boolean_based"] = True
             config.setdefault("sqli", {})["time_based"] = True
             config.setdefault("safety", {})["include_post"] = True
+            if args.max_requests is None:
+                current_limit = int(config.setdefault("safety", {}).get("max_requests", 300))
+                config.setdefault("safety", {})["max_requests"] = max(current_limit, 300)
             return
 
         if selected_sqli_type:

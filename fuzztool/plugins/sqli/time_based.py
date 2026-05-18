@@ -8,12 +8,7 @@ from ...mutator import RequestMutator
 
 
 class TimeBasedSqliScanner:
-    """SQLi time-based scanner.
-
-    Scanner gui baseline truoc, sau do gui payload SLEEP. Finding chi duoc ghi
-    khi payload cham hon baseline ro rang hoac payload bi timeout sau khi
-    baseline van phan hoi binh thuong.
-    """
+    """SQLi time-based scanner."""
 
     def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
         self.client = client
@@ -28,43 +23,60 @@ class TimeBasedSqliScanner:
         if baseline.error:
             return []
 
-        payload = self._payload(target)
-        method, url, body, headers = self.mutator.mutate(target, payload)
-        exchange = self.client.send(method, url, body=body, headers=headers)
+        for payload in self._payloads(target):
+            method, url, body, headers = self.mutator.mutate(target, payload)
+            exchange = self.client.send(method, url, body=body, headers=headers)
+            finding = self._finding_if_delayed(target, payload, baseline, exchange)
+            if finding:
+                return [finding]
+        return []
 
+    def _finding_if_delayed(
+        self,
+        target: FuzzTarget,
+        payload: str,
+        baseline: HttpExchange,
+        exchange: HttpExchange,
+    ) -> Finding | None:
         delta = exchange.elapsed_seconds - baseline.elapsed_seconds
         timeout_after_stable_baseline = bool(exchange.error and exchange.elapsed_seconds >= self.threshold)
         delayed_over_baseline = delta >= self.threshold
         if not timeout_after_stable_baseline and not delayed_over_baseline:
-            return []
+            return None
 
         evidence = "request_timeout_after_stable_baseline" if timeout_after_stable_baseline else "response_delay_delta_over_threshold"
-        return [
-            Finding(
-                vuln_type="sqli",
-                subtype="time_based",
-                severity="medium",
-                target=target,
-                payload=payload,
-                evidence=evidence,
-                request_url=exchange.url,
-                status=exchange.status,
-                details={
-                    "baseline_seconds": round(baseline.elapsed_seconds, 4),
-                    "payload_seconds": round(exchange.elapsed_seconds, 4),
-                    "delta_seconds": round(delta, 4),
-                    "threshold": self.threshold,
-                    "sleep_seconds": self.sleep_seconds,
-                    "error": exchange.error,
-                },
-            )
-        ]
+        return Finding(
+            vuln_type="sqli",
+            subtype="time_based",
+            severity="medium",
+            target=target,
+            payload=payload,
+            evidence=evidence,
+            request_url=exchange.url,
+            status=exchange.status,
+            details={
+                "baseline_seconds": round(baseline.elapsed_seconds, 4),
+                "payload_seconds": round(exchange.elapsed_seconds, 4),
+                "delta_seconds": round(delta, 4),
+                "threshold": self.threshold,
+                "sleep_seconds": self.sleep_seconds,
+                "error": exchange.error,
+            },
+        )
 
     def _send_baseline(self, target: FuzzTarget) -> HttpExchange:
         method, url, body, headers = self.mutator.baseline(target)
         return self.client.send(method, url, body=body, headers=headers)
 
-    def _payload(self, target: FuzzTarget) -> str:
+    def _payloads(self, target: FuzzTarget) -> List[str]:
+        sample = target.sample_value
+        sleep = self.sleep_seconds
         if target.type_hint in {"int", "float"}:
-            return f"{target.sample_value} AND SLEEP({self.sleep_seconds})"
-        return f"{target.sample_value}' OR SLEEP({self.sleep_seconds})-- -"
+            return [
+                f"{sample} AND SLEEP({sleep})",
+                f"{sample}' AND SLEEP({sleep})-- -",
+            ]
+        return [
+            f"{sample}' AND SLEEP({sleep})-- -",
+            f"{sample}' OR SLEEP({sleep})-- -",
+        ]
