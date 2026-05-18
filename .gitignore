@@ -7,6 +7,8 @@ recon-output/
 recon-output*/
 fuzz-output/
 fuzz-output*/
+ai-output/
+ai-output*/
 runs/
 test-output/
 test-output*/

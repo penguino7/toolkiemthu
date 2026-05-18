@@ -1,0 +1,31 @@
+{
+  "provider": {
+    "name": "offline",
+    "base_url": "http://127.0.0.1:11434",
+    "model": "llama3.1:8b",
+    "api_key_env": "",
+    "timeout_seconds": 60,
+    "temperature": 0.1
+  },
+  "analysis": {
+    "language": "vi",
+    "max_findings": 50,
+    "max_payload_chars": 500,
+    "max_detail_chars": 1200
+  },
+  "redaction": {
+    "enabled": true,
+    "sensitive_keys": [
+      "authorization",
+      "cookie",
+      "set-cookie",
+      "password",
+      "token",
+      "secret",
+      "api_key",
+      "apikey"
+    ]
+  },
+  "output_dir": "ai-output"
+}
+

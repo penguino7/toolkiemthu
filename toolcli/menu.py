@@ -16,8 +16,11 @@ class LauncherState:
     recon_output: str = "recon-output"
     fuzz_output: str = "fuzz-output"
     inventory_path: str = "recon-output/inventory.json"
+    findings_path: str = "fuzz-output/findings.json"
     max_requests: str = ""
     trace_log: bool = True
+    ai_config: str = "ai.config.example.json"
+    ai_output: str = "ai-output"
 
 
 class ToolCliMenu:
@@ -50,7 +53,13 @@ class ToolCliMenu:
             elif choice == "8":
                 self.show_findings_summary()
             elif choice == "9":
-                self.edit_settings()
+                self.run_ai_analysis()
+            elif choice == "10":
+                self.show_ai_report_summary()
+            elif choice == "11":
+                self.edit_tool_settings()
+            elif choice == "12":
+                self.edit_ai_settings()
             elif choice == "0":
                 return 0
             else:
@@ -67,8 +76,11 @@ class ToolCliMenu:
         print(f"Recon output  : {self.state.recon_output}")
         print(f"Inventory     : {self.state.inventory_path}")
         print(f"Fuzz output   : {self.state.fuzz_output}")
+        print(f"Findings      : {self.state.findings_path}")
         print(f"Max requests  : {self.state.max_requests or 'default'}")
         print(f"Trace log     : {'ON' if self.state.trace_log else 'OFF'}")
+        print(f"AI config     : {self.state.ai_config}")
+        print(f"AI output     : {self.state.ai_output}")
         print("-" * 72)
         print("1. Chạy recon tĩnh")
         print("2. Chạy recon tĩnh + dynamic Playwright")
@@ -78,7 +90,10 @@ class ToolCliMenu:
         print("6. Dry-run fuzz all")
         print("7. Xem tóm tắt inventory")
         print("8. Xem tóm tắt findings")
-        print("9. Cài đặt")
+        print("9. Chạy AI analysis")
+        print("10. Xem tóm tắt AI report")
+        print("11. Cài đặt recon/fuzz")
+        print("12. Cài đặt AI")
         print("0. Thoát")
 
     def run_recon(self, dynamic: bool) -> None:
@@ -106,22 +121,41 @@ class ToolCliMenu:
 
         module, final_args = self._module_and_args("fuzz", args)
         self.runner.run_python_module(title, module, final_args)
+        self.state.findings_path = f"{self.state.fuzz_output}/findings.json"
+
+    def run_ai_analysis(self) -> None:
+        args = [
+            self.state.findings_path,
+            "--config",
+            self.state.ai_config,
+            "--out",
+            self.state.ai_output,
+        ]
+        self.runner.run_python_module("ai-analysis", "aitool", args)
 
     def _module_and_args(self, tool_name: str, args: List[str]) -> tuple[str, List[str]]:
         if self.state.trace_log:
             return "toolcli.trace_runner", [tool_name, *args]
         return f"{tool_name}tool", args
 
-    def edit_settings(self) -> None:
+    def edit_tool_settings(self) -> None:
         print("")
-        print("Bỏ trống để giữ nguyên giá trị hiện tại.")
+        print("Cài đặt recon/fuzz. Bỏ trống để giữ nguyên giá trị hiện tại.")
         self.state.base_url = self._ask("Base URL", self.state.base_url)
         self.state.recon_output = self._ask("Recon output", self.state.recon_output)
         self.state.inventory_path = self._ask("Inventory path", self.state.inventory_path)
         self.state.fuzz_output = self._ask("Fuzz output", self.state.fuzz_output)
+        self.state.findings_path = self._ask("Findings path", self.state.findings_path)
         self.state.max_requests = self._ask("Max requests", self.state.max_requests)
         trace_answer = self._ask("Trace log ON/OFF", "ON" if self.state.trace_log else "OFF")
         self.state.trace_log = trace_answer.strip().lower() in {"on", "yes", "y", "1", "true"}
+
+    def edit_ai_settings(self) -> None:
+        print("")
+        print("Cài đặt AI. Bỏ trống để giữ nguyên giá trị hiện tại.")
+        self.state.ai_config = self._ask("AI config", self.state.ai_config)
+        self.state.ai_output = self._ask("AI output", self.state.ai_output)
+        self.state.findings_path = self._ask("Findings path", self.state.findings_path)
 
     def show_inventory_summary(self) -> None:
         path = self.root / self.state.inventory_path
@@ -141,7 +175,7 @@ class ToolCliMenu:
             print(f"  {record.get('method')} {record.get('canonical_path') or record.get('path')} tests={tests}")
 
     def show_findings_summary(self) -> None:
-        path = self.root / self.state.fuzz_output / "findings.json"
+        path = self.root / self.state.findings_path
         data = self._read_json(path)
         if data is None:
             return
@@ -157,6 +191,28 @@ class ToolCliMenu:
                     path=finding.get("path"),
                     location=finding.get("location"),
                     param=finding.get("param"),
+                )
+            )
+
+    def show_ai_report_summary(self) -> None:
+        path = self.root / self.state.ai_output / "ai-report.json"
+        data = self._read_json(path)
+        if data is None:
+            return
+
+        print(f"AI report: {path}")
+        print(f"- Analyses: {len(data)}")
+        for item in data:
+            result = item.get("ai_result", {})
+            finding = item.get("source_finding", {})
+            print(
+                "  #{index} {vuln}/{subtype} cwe={cwe} severity={severity} confidence={confidence}".format(
+                    index=item.get("index"),
+                    vuln=finding.get("vuln_type"),
+                    subtype=finding.get("subtype"),
+                    cwe=result.get("cwe"),
+                    severity=result.get("severity"),
+                    confidence=result.get("confidence"),
                 )
             )
 
@@ -177,4 +233,3 @@ class ToolCliMenu:
 
 def main() -> int:
     return ToolCliMenu().run()
-

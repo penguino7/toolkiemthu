@@ -56,7 +56,10 @@ Menu sẽ hiện các lựa chọn bằng số:
 6. Dry-run fuzz all
 7. Xem tóm tắt inventory
 8. Xem tóm tắt findings
-9. Cài đặt
+9. Chạy AI analysis
+10. Xem tóm tắt AI report
+11. Cài đặt recon/fuzz
+12. Cài đặt AI
 0. Thoát
 ```
 
@@ -168,11 +171,56 @@ fuzz-output/findings.md
 
 `findings` chỉ chứa kết quả đã có bằng chứng. Với XSS, tool dùng Playwright mở URL trong browser thật và chỉ ghi khi bắt được `alert()`/dialog chứa marker của payload. Payload chỉ được phản xạ trong HTML/JSON hoặc chỉ render ra DOM nhưng không thực thi sẽ không được ghi vào `findings`.
 
+## Chạy AI Analysis
+
+AI tool là bước hậu xử lý, chỉ đọc `findings.json` và sinh report riêng. Nó không sửa `recontool` hoặc `fuzztool`.
+
+Chạy mặc định bằng chế độ `offline`:
+
+```bash
+python -B -m aitool fuzz-output/findings.json
+```
+
+Output:
+
+```text
+ai-output/ai-report.json
+ai-output/ai-report.md
+```
+
+Cấu hình AI nằm ở:
+
+```text
+ai.config.example.json
+```
+
+Provider mặc định là `offline` để test tool không cần API. Khi muốn dùng Ollama local:
+
+```json
+"provider": {
+  "name": "ollama",
+  "base_url": "http://127.0.0.1:11434",
+  "model": "llama3.1:8b"
+}
+```
+
+Nếu dùng API tương thích `/chat/completions`, đổi provider:
+
+```json
+"provider": {
+  "name": "openai_compatible",
+  "base_url": "https://your-ai-api.example/v1",
+  "model": "your-model",
+  "api_key_env": "AI_API_KEY"
+}
+```
+
 ## Cấu Trúc Repo
 
 ```text
 .
 ├── README.md
+├── ai.config.example.json
 ├── config.example.json
 ├── fuzz.config.example.json
 ├── requirements.txt
@@ -185,6 +233,17 @@ fuzz-output/findings.md
 │   ├── menu.py
 │   ├── runner.py
 │   └── trace_runner.py
+├── aitool/
+│   ├── __main__.py
+│   ├── ai_client.py
+│   ├── analyzer.py
+│   ├── cli.py
+│   ├── config.py
+│   ├── prompts.py
+│   ├── providers.py
+│   ├── redactor.py
+│   ├── reporter.py
+│   └── schemas.py
 ├── recontool/
 │   ├── __main__.py
 │   ├── RECON_FLOW.md
@@ -442,6 +501,24 @@ Phần SQLi:
   "time_based": false
 }
 ```
+
+## Cấu Hình AI
+
+File chính:
+
+```text
+ai.config.example.json
+```
+
+Các provider đang hỗ trợ:
+
+```text
+offline              không gọi API, dùng fallback nội bộ
+ollama               gọi API local kiểu Ollama /api/chat
+openai_compatible    gọi API tương thích /chat/completions
+```
+
+AI tool chỉ nhận dữ liệu đã lọc từ `findings.json`. Mặc định nó có `redaction.enabled=true` để ẩn các key nhạy cảm như `authorization`, `cookie`, `password`, `token` trước khi gửi sang provider.
 
 ## Kiểm Tra Nhanh
 
