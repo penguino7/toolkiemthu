@@ -16,16 +16,19 @@ class EndpointDeduplicator:
         self.mode = mode
 
     def dedupe(self, records: Iterable[EndpointRecord]) -> List[EndpointRecord]:
-        merged: Dict[str, EndpointRecord] = {}
+        records_by_fingerprint: Dict[str, EndpointRecord] = {}
+
         for record in records:
-            key = self.fingerprint(record)
-            if key in merged:
-                merged[key].merge(record)
+            fingerprint = self.fingerprint(record)
+            if fingerprint in records_by_fingerprint:
+                records_by_fingerprint[fingerprint].merge(record)
             else:
-                merged[key] = record
-        return sorted(merged.values(), key=lambda r: (r.host, r.path, r.method))
+                records_by_fingerprint[fingerprint] = record
+
+        return sorted(records_by_fingerprint.values(), key=lambda r: (r.host, r.path, r.method))
 
     def fingerprint(self, record: EndpointRecord) -> str:
+        # Fingerprint là "dấu vân tay" của endpoint để biết record nào trùng nhau.
         path = record.canonical_path if self.mode == "smart" else record.path
         query_names = self._param_names(record, "query")
         body_names = self._param_names(record, "body")

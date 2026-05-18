@@ -66,11 +66,15 @@ class DynamicCrawler:
         seeds = [self.normalizer.absolute_url(seed, self.base_url) for seed in self.config.get("seeds", ["/"])]
 
         with sync_playwright() as playwright:
+            # Bước 1: mở browser context. Nếu có storage_state/header thì dùng ở đây.
             browser = playwright.chromium.launch(headless=self.headless)
             context = browser.new_context(**self._context_kwargs())
             page = context.new_page()
+
+            # Bước 2: mỗi response của browser sẽ chạy qua _on_response().
             page.on("response", self._on_response)
 
+            # Bước 3: login nếu config có auth profile dạng form, rồi crawl seed pages.
             self._login_with_form(page)
             self._crawl_pages(page, seeds)
 
@@ -121,26 +125,27 @@ class DynamicCrawler:
             page.goto(self.normalizer.absolute_url(success["url"], self.base_url), wait_until="networkidle")
 
     def _crawl_pages(self, page, seeds: List[str]) -> None:
-        queue = deque(seeds)
-        visited = set()
+        crawl_queue = deque(seeds)
+        visited_urls = set()
 
-        while queue and len(visited) < self.max_pages:
-            url = queue.popleft()
-            if url in visited or not self.scope_policy.allows(url):
+        while crawl_queue and len(visited_urls) < self.max_pages:
+            page_url = crawl_queue.popleft()
+            if page_url in visited_urls or not self.scope_policy.allows(page_url):
                 continue
 
-            visited.add(url)
-            self.current_page_url = url
+            visited_urls.add(page_url)
+            self.current_page_url = page_url
             try:
-                page.goto(url, wait_until="networkidle", timeout=self.timeout_ms)
+                page.goto(page_url, wait_until="networkidle", timeout=self.timeout_ms)
             except Exception:
                 self.stats["navigation_errors"] += 1
                 continue
 
+            # Các thao tác này giúp SPA/lazy-load gọi thêm API nếu config bật.
             self._auto_scroll(page)
             self._run_safe_actions(page)
             self._auto_scroll(page)
-            self._enqueue_page_links(page, queue, visited)
+            self._enqueue_page_links(page, crawl_queue, visited_urls)
 
     def _auto_scroll(self, page) -> None:
         """Scroll để kích hoạt lazy-load API nếu được bật trong config."""
@@ -206,19 +211,23 @@ class DynamicCrawler:
         self.stats["responses_seen"] += 1
         request = response.request
 
+        # Bước 1: bỏ qua ảnh/font/css nếu config chỉ muốn document/xhr/fetch.
         if not self._is_allowed_resource_type(request):
             self.stats["skipped_resource_type"] += 1
             return
 
-        normalized_url = self.normalizer.absolute_url(request.url, self.base_url)
-        if not self.scope_policy.allows(normalized_url):
+        # Bước 2: chỉ giữ request nằm trong scope.
+        request_url = self.normalizer.absolute_url(request.url, self.base_url)
+        if not self.scope_policy.allows(request_url):
             self.stats["skipped_out_of_scope"] += 1
             return
 
+        # Bước 3: lấy request/response metadata và đưa về EndpointRecord.
         response_headers = dict(response.headers)
         request_headers = dict(request.headers)
         response_content_type = response_headers.get("content-type", "")
         response_text = self._response_text(response, response_content_type)
+
         record = self.normalizer.make_record(
             request.method,
             request.url,

@@ -37,25 +37,26 @@ class RecordEnricher:
         return [self.enrich_one(record) for record in records]
 
     def enrich_one(self, record: EndpointRecord) -> EndpointRecord:
-        tests = set(record.candidate_tests)
-        is_json = "json" in (record.response_content_type or "").lower()
-        is_html = "html" in (record.response_content_type or "").lower()
+        record_tests = set(record.candidate_tests)
+        response_is_json = "json" in (record.response_content_type or "").lower()
+        response_is_html = "html" in (record.response_content_type or "").lower()
 
+        # Evidence có sẵn từ normalizer được chuyển thành candidate_tests.
         if record.evidence.get("db_error_pattern"):
-            tests.add("sqli_error_evidence")
+            record_tests.add("sqli_error_evidence")
         if record.evidence.get("reflection_contexts"):
-            tests.add("reflection_detected")
+            record_tests.add("reflection_detected")
 
         for param in record.params.values():
             param_tests = set(param.candidate_tests)
-            self._mark_sql_candidates(param, param_tests, tests, is_json)
-            self._mark_xss_candidates(param, record, param_tests, tests, is_json, is_html)
+            self._mark_sql_candidates(param, param_tests, record_tests, response_is_json)
+            self._mark_xss_candidates(param, record, param_tests, record_tests, response_is_json, response_is_html)
             param.candidate_tests = sorted(param_tests)
 
         if record.forms:
-            tests.add("form_endpoint")
+            record_tests.add("form_endpoint")
 
-        record.candidate_tests = sorted(tests)
+        record.candidate_tests = sorted(record_tests)
         return record
 
     def _mark_sql_candidates(self, param: Param, param_tests: set, record_tests: set, is_json: bool) -> None:

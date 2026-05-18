@@ -72,8 +72,11 @@ class FuzzConfigLoader:
     def deep_merge(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(base)
         for key, value in override.items():
-            if isinstance(value, dict) and isinstance(result.get(key), dict):
-                result[key] = self.deep_merge(result[key], value)
+            base_value = result.get(key)
+            both_values_are_dict = isinstance(value, dict) and isinstance(base_value, dict)
+
+            if both_values_are_dict:
+                result[key] = self.deep_merge(base_value, value)
             else:
                 result[key] = value
         return result

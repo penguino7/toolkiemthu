@@ -12,7 +12,11 @@ from .payload_factory import XssPayloadFactory
 
 
 class ReflectedXssScanner:
-    """Kiem tra reflected XSS va chi ghi finding khi payload thuc thi."""
+    """Kiem tra reflected XSS.
+
+    File nay chi lo mot viec: thay payload vao query param, mo URL bang
+    browser that, roi ghi finding neu alert/dialog that su chay.
+    """
 
     def __init__(self, client: FuzzHttpClient, config: dict | None = None, mutator: RequestMutator | None = None) -> None:
         self.client = client
@@ -26,19 +30,29 @@ class ReflectedXssScanner:
             return []
 
         marker = self._marker(target)
-        payloads = self._payloads(marker)
+        payload_mode = self.config.get("xss", {}).get("payload_mode", "proof")
+        payloads = (
+            self.payload_factory.marker_payloads(marker)
+            if payload_mode == "marker"
+            else self.payload_factory.proof_payloads(marker)
+        )
         findings: List[Finding] = []
 
         with BrowserXssVerifier(self.config) as verifier:
             for payload in payloads:
-                method, url, body, headers = self.mutator.mutate(target, payload)
-                exchange = self.client.send(method, url, body=body, headers=headers)
-                found, context = self.detector.reflected(exchange.text, marker, exchange.headers.get("content-type", ""))
-                if not found:
+                # Buoc 1: tao request tan cong bang cach thay param hien tai bang payload.
+                attack_method, attack_url, attack_body, attack_headers = self.mutator.mutate(target, payload)
+
+                # Buoc 2: gui request de xem marker co bi reflect trong HTTP response khong.
+                response = self.client.send(attack_method, attack_url, body=attack_body, headers=attack_headers)
+                content_type = response.headers.get("content-type", "")
+                is_reflected, reflection_context = self.detector.reflected(response.text, marker, content_type)
+                if not is_reflected:
                     continue
 
-                proof = verifier.verify_url(url, marker)
-                if not proof.executed:
+                # Buoc 3: reflect chua du. Mo browser that de xac nhan JavaScript co chay.
+                browser_result = verifier.verify_url(attack_url, marker)
+                if not browser_result.executed:
                     continue
 
                 findings.append(
@@ -49,25 +63,19 @@ class ReflectedXssScanner:
                         target=target,
                         payload=payload,
                         evidence="alert_dialog_executed_after_reflection",
-                        request_url=proof.final_url,
-                        status=exchange.status,
+                        request_url=browser_result.final_url,
+                        status=response.status,
                         details={
-                            "context": context,
+                            "context": reflection_context,
                             "marker": marker,
-                            "dialog_messages": proof.dialog_messages,
-                            "rendered_in_browser": proof.rendered,
-                            "browser_error": proof.error,
-                            "elapsed_seconds": round(exchange.elapsed_seconds, 4),
+                            "dialog_messages": browser_result.dialog_messages,
+                            "rendered_in_browser": browser_result.rendered,
+                            "browser_error": browser_result.error,
+                            "elapsed_seconds": round(response.elapsed_seconds, 4),
                         },
                     )
                 )
         return findings
-
-    def _payloads(self, marker: str) -> List[str]:
-        mode = self.config.get("xss", {}).get("payload_mode", "proof")
-        if mode == "marker":
-            return self.payload_factory.marker_payloads(marker)
-        return self.payload_factory.proof_payloads(marker)
 
     def _marker(self, target: FuzzTarget) -> str:
         seed = f"{target.method}|{target.path}|{target.param_location}|{target.param_name}"

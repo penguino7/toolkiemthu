@@ -38,12 +38,14 @@ class FuzzHttpClient:
         body: str | bytes | None = None,
         headers: Dict[str, str] | None = None,
     ) -> HttpExchange:
+        # Bước 1: kiểm soát an toàn, tránh fuzz quá số request cho phép.
         if self.max_requests is not None and self.request_count >= self.max_requests:
             raise RequestBudgetExceeded(f"Reached max_requests={self.max_requests}")
         if self.delay_seconds > 0:
             time.sleep(self.delay_seconds)
         self.request_count += 1
 
+        # Bước 2: chuẩn bị headers/body cho urllib.
         final_headers = dict(self.headers)
         if headers:
             final_headers.update(headers)
@@ -53,11 +55,19 @@ class FuzzHttpClient:
             data = body if isinstance(body, bytes) else body.encode("utf-8")
             final_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
 
+        # Bước 3: gửi request. HTTP 4xx/5xx vẫn là response hợp lệ để detector đọc.
         started = time.perf_counter()
         request = Request(url, data=data, headers=final_headers, method=method.upper())
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
-                return self._exchange(method, response.geturl(), response.status, response.headers.items(), response.read(), started)
+                return self._exchange(
+                    method,
+                    response.geturl(),
+                    response.status,
+                    response.headers.items(),
+                    response.read(),
+                    started,
+                )
         except HTTPError as error:
             return self._exchange(method, error.geturl(), error.code, error.headers.items(), error.read(), started)
         except (TimeoutError, SocketTimeout) as error:

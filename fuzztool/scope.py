@@ -14,6 +14,12 @@ class FuzzScope:
     def allows(self, url: str) -> bool:
         parsed = urlparse(url)
         host = (parsed.hostname or "").lower()
+
         if self.include_hosts and host not in self.include_hosts:
             return False
-        return not any(parsed.path.startswith(path) for path in self.exclude_paths)
+
+        for excluded_path in self.exclude_paths:
+            if parsed.path.startswith(excluded_path):
+                return False
+
+        return True

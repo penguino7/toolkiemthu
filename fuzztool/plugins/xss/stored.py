@@ -12,7 +12,11 @@ from .payload_factory import XssPayloadFactory
 
 
 class StoredXssScanner:
-    """Stored XSS scanner, chi ghi finding khi payload da duoc thuc thi."""
+    """Kiem tra stored XSS.
+
+    Luong chinh: submit payload vao form/API, sau do mo cac trang check lai
+    bang browser de xem payload da duoc luu va thuc thi hay chua.
+    """
 
     def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
         self.client = client
@@ -26,15 +30,19 @@ class StoredXssScanner:
 
         marker = self._marker(target)
         payload = self.payload_factory.proof_payloads(marker)[0]
-        method, url, body, headers = self.mutator.mutate(target, payload)
-        submit = self.client.send(method, url, body=body, headers=headers)
         findings: List[Finding] = []
 
+        # Buoc 1: submit payload vao body/json param dang duoc test.
+        submit_method, submit_url, submit_body, submit_headers = self.mutator.mutate(target, payload)
+        submit_response = self.client.send(submit_method, submit_url, body=submit_body, headers=submit_headers)
+
+        # Buoc 2: mo lai cac trang co kha nang hien thi du lieu vua submit.
+        check_paths = self.config.get("xss", {}).get("stored_check_paths", [])
         with BrowserXssVerifier(self.config) as verifier:
-            for path in self.config.get("xss", {}).get("stored_check_paths", []):
+            for path in check_paths:
                 check_url = urljoin(self.config.get("base_url", target.url), path)
-                proof = verifier.verify_url(check_url, marker)
-                if not proof.executed:
+                browser_result = verifier.verify_url(check_url, marker)
+                if not browser_result.executed:
                     continue
 
                 findings.append(
@@ -45,15 +53,15 @@ class StoredXssScanner:
                         target=target,
                         payload=payload,
                         evidence="stored_alert_dialog_executed",
-                        request_url=proof.final_url,
-                        status=submit.status,
+                        request_url=browser_result.final_url,
+                        status=submit_response.status,
                         details={
                             "marker": marker,
-                            "submit_status": submit.status,
+                            "submit_status": submit_response.status,
                             "check_url": check_url,
-                            "dialog_messages": proof.dialog_messages,
-                            "rendered_in_browser": proof.rendered,
-                            "browser_error": proof.error,
+                            "dialog_messages": browser_result.dialog_messages,
+                            "rendered_in_browser": browser_result.rendered,
+                            "browser_error": browser_result.error,
                         },
                     )
                 )

@@ -10,7 +10,11 @@ from .payload_factory import SqliPayloadFactory
 
 
 class BooleanBasedSqliScanner:
-    """SQLi boolean-based scanner tùy chọn."""
+    """Kiem tra SQLi boolean-based.
+
+    Scanner nay gui payload dung/sai theo cap. Neu response cua dieu kien dung
+    va sai khac nhau ro rang thi co kha nang SQLi.
+    """
 
     def __init__(self, client: FuzzHttpClient, mutator: RequestMutator | None = None) -> None:
         self.client = client
@@ -20,11 +24,22 @@ class BooleanBasedSqliScanner:
 
     def scan(self, target: FuzzTarget) -> List[Finding]:
         for true_payload, false_payload in self.payload_factory.boolean_payload_pairs(target):
-            true_exchange = self._send(target, true_payload)
-            false_exchange = self._send(target, false_payload)
-            if true_exchange.error or false_exchange.error:
+            # Buoc 1: gui request voi dieu kien SQL dung.
+            true_method, true_url, true_body, true_headers = self.mutator.mutate(target, true_payload)
+            true_response = self.client.send(true_method, true_url, body=true_body, headers=true_headers)
+
+            # Buoc 2: gui request voi dieu kien SQL sai.
+            false_method, false_url, false_body, false_headers = self.mutator.mutate(target, false_payload)
+            false_response = self.client.send(false_method, false_url, body=false_body, headers=false_headers)
+
+            if true_response.error or false_response.error:
                 continue
-            if true_exchange.status == false_exchange.status and self.detector.response_changed(true_exchange.text, false_exchange.text):
+
+            same_status = true_response.status == false_response.status
+            response_is_different = self.detector.response_changed(true_response.text, false_response.text)
+
+            # Buoc 3: chi ghi finding khi true/false tao ra response khac nhau.
+            if same_status and response_is_different:
                 return [
                     Finding(
                         vuln_type="sqli",
@@ -33,16 +48,12 @@ class BooleanBasedSqliScanner:
                         target=target,
                         payload=f"{true_payload} / {false_payload}",
                         evidence="true_false_response_difference",
-                        request_url=true_exchange.url,
-                        status=true_exchange.status,
+                        request_url=true_response.url,
+                        status=true_response.status,
                         details={
-                            "true_length": len(true_exchange.text),
-                            "false_length": len(false_exchange.text),
+                            "true_length": len(true_response.text),
+                            "false_length": len(false_response.text),
                         },
                     )
                 ]
         return []
-
-    def _send(self, target: FuzzTarget, payload: str):
-        method, url, body, headers = self.mutator.mutate(target, payload)
-        return self.client.send(method, url, body=body, headers=headers)

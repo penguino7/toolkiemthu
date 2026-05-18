@@ -28,8 +28,3 @@ class ScopePolicy:
                 return False
 
         return True
-
-
-def in_scope(url: str, config: dict) -> bool:
-    """Wrapper tương thích cho code cũ."""
-    return ScopePolicy(config).allows(url)

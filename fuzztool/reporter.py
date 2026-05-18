@@ -24,24 +24,30 @@ class FuzzReporter:
         lines = ["# Fuzz Findings", "", f"Tổng finding: **{len(findings)}**", ""]
         if not findings:
             lines.extend(["Không có finding.", ""])
+
         for index, finding in enumerate(findings, start=1):
-            lines.extend(
-                [
-                    f"## {index}. {finding.vuln_type} - {finding.subtype}",
-                    "",
-                    f"- Severity: `{finding.severity}`",
-                    f"- Method: `{finding.target.method}`",
-                    f"- URL: `{finding.request_url}`",
-                    f"- Param: `{finding.target.param_location}:{finding.target.param_name}`",
-                    f"- Payload: `{finding.payload}`",
-                    f"- Status: `{finding.status}`",
-                    f"- Evidence: `{finding.evidence}`",
-                    "",
-                ]
-            )
-            if finding.details:
-                lines.append("Details:")
-                for key, value in finding.details.items():
-                    lines.append(f"- `{key}`: `{value}`")
-                lines.append("")
+            self._append_finding(lines, index, finding)
+
         Path(output_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def _append_finding(self, lines: List[str], index: int, finding: Finding) -> None:
+        lines.extend(
+            [
+                f"## {index}. {finding.vuln_type} - {finding.subtype}",
+                "",
+                f"- Severity: `{finding.severity}`",
+                f"- Method: `{finding.target.method}`",
+                f"- URL: `{finding.request_url}`",
+                f"- Param: `{finding.target.param_location}:{finding.target.param_name}`",
+                f"- Payload: `{finding.payload}`",
+                f"- Status: `{finding.status}`",
+                f"- Evidence: `{finding.evidence}`",
+                "",
+            ]
+        )
+
+        if finding.details:
+            lines.append("Details:")
+            for key, value in finding.details.items():
+                lines.append(f"- `{key}`: `{value}`")
+            lines.append("")

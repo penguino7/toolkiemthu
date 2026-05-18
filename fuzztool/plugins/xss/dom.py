@@ -10,7 +10,11 @@ from .payload_factory import XssPayloadFactory
 
 
 class DomXssScanner:
-    """DOM XSS scanner bang Playwright, chi ghi khi payload thuc thi."""
+    """Kiem tra DOM XSS bang Playwright.
+
+    DOM XSS khong can response HTML reflect payload. Vi vay scanner nay tao
+    URL co payload roi mo thang trong browser de bat dialog.
+    """
 
     def __init__(self, config: dict, mutator: RequestMutator | None = None) -> None:
         self.config = config
@@ -27,9 +31,12 @@ class DomXssScanner:
 
         with BrowserXssVerifier(self.config) as verifier:
             for payload in payloads:
-                _, url, _, _ = self.mutator.mutate(target, payload)
-                proof = verifier.verify_url(url, marker)
-                if not proof.executed:
+                # Buoc 1: tao URL tan cong cho query param.
+                _, attack_url, _, _ = self.mutator.mutate(target, payload)
+
+                # Buoc 2: mo URL bang browser that va bat alert/dialog.
+                browser_result = verifier.verify_url(attack_url, marker)
+                if not browser_result.executed:
                     continue
 
                 findings.append(
@@ -40,13 +47,13 @@ class DomXssScanner:
                         target=target,
                         payload=payload,
                         evidence="alert_dialog_executed",
-                        request_url=proof.final_url,
+                        request_url=browser_result.final_url,
                         status=None,
                         details={
                             "marker": marker,
-                            "dialog_messages": proof.dialog_messages,
-                            "rendered_in_browser": proof.rendered,
-                            "browser_error": proof.error,
+                            "dialog_messages": browser_result.dialog_messages,
+                            "rendered_in_browser": browser_result.rendered,
+                            "browser_error": browser_result.error,
                             "scanner": "playwright_dom",
                         },
                     )

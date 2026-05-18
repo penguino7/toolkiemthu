@@ -82,7 +82,11 @@ class StaticHtmlCrawler:
 
         options = config.get("static", {})
         timeout = int(options.get("timeout_seconds", 10))
-        self.session = session or config.get("_http_session") or HttpSession(headers=config.get("headers", {}), timeout=timeout)
+        self.session = (
+            session
+            or config.get("_http_session")
+            or HttpSession(headers=config.get("headers", {}), timeout=timeout)
+        )
 
         self.base_url = config["base_url"]
         self.auth_context = config.get("auth_context", "anonymous")
@@ -91,40 +95,52 @@ class StaticHtmlCrawler:
 
     def crawl(self) -> List[EndpointRecord]:
         seeds = [self.normalizer.absolute_url(seed, self.base_url) for seed in self.config.get("seeds", ["/"])]
-        queue = deque((seed, 0, None) for seed in seeds)
-        visited = set()
-        records: List[EndpointRecord] = []
+        crawl_queue = deque((seed, 0, None) for seed in seeds)
+        visited_urls = set()
+        endpoint_records: List[EndpointRecord] = []
 
-        while queue and len(visited) < self.max_pages:
-            url, depth, parent = queue.popleft()
-            if self._should_skip(url, depth, visited):
+        while crawl_queue and len(visited_urls) < self.max_pages:
+            page_url, page_depth, parent_url = crawl_queue.popleft()
+            if self._should_skip(page_url, page_depth, visited_urls):
                 continue
 
-            visited.add(url)
-            page_records, links = self._crawl_one_page(url, parent)
-            records.extend(page_records)
-            self._enqueue_links(queue, links, visited, depth, parent_url=url)
+            # Bước 1: request một trang HTML.
+            visited_urls.add(page_url)
+            page_records, discovered_links = self._crawl_one_page(page_url, parent_url)
+            endpoint_records.extend(page_records)
 
-        return records
+            # Bước 2: đưa link mới vào hàng đợi để crawl tiếp.
+            self._enqueue_links(crawl_queue, discovered_links, visited_urls, page_depth, parent_url=page_url)
+
+        return endpoint_records
 
     def _should_skip(self, url: str, depth: int, visited: set[str]) -> bool:
         return url in visited or depth > self.max_depth or not self.scope_policy.allows(url)
 
     def _crawl_one_page(self, url: str, parent: str | None) -> tuple[List[EndpointRecord], List[str]]:
         try:
-            result = self.session.get(url)
+            response = self.session.get(url)
         except RuntimeError:
             return [], []
 
-        content_type = result.headers.get("content-type", "")
-        records = [self._make_page_record(result.url, result.status, content_type, result.headers, result.text, parent)]
+        content_type = response.headers.get("content-type", "")
+        records = [
+            self._make_page_record(
+                response.url,
+                response.status,
+                content_type,
+                response.headers,
+                response.text,
+                parent,
+            )
+        ]
 
         if "html" not in content_type.lower():
             return records, []
 
-        parser = HtmlDiscoveryParser(result.url)
-        parser.feed(result.text)
-        records.extend(self._make_form_records(parser.forms, result.url))
+        parser = HtmlDiscoveryParser(response.url)
+        parser.feed(response.text)
+        records.extend(self._make_form_records(parser.forms, response.url))
         return records, parser.links
 
     def _make_page_record(
@@ -155,6 +171,8 @@ class StaticHtmlCrawler:
         for form in forms:
             method = form.get("method", "GET").upper()
             body = self._body_from_form(form) if method != "GET" else None
+
+            # Mỗi form cũng được xem như một endpoint riêng để fuzz/test sau này.
             record = self.normalizer.make_record(
                 method,
                 form.get("action", page_url),

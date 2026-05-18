@@ -8,18 +8,18 @@ from typing import Any, Dict, List
 class FuzzTarget:
     """Một param cụ thể được chọn từ inventory để fuzz."""
 
-    method: str
-    url: str
-    path: str
-    auth_context: str
-    param_name: str
-    param_location: str
-    type_hint: str = "string"
-    sample_values: List[str] = field(default_factory=list)
-    request_content_type: str = ""
-    request_headers: Dict[str, str] = field(default_factory=dict)
-    candidate_tests: List[str] = field(default_factory=list)
-    record: Dict[str, Any] = field(default_factory=dict)
+    method: str  # HTTP method: GET, POST...
+    url: str  # URL mẫu lấy từ inventory.json.
+    path: str  # Path/canonical_path, ví dụ: /search.php.
+    auth_context: str  # Context lúc recon phát hiện endpoint: anonymous, admin...
+    param_name: str  # Tên param sẽ fuzz, ví dụ: q, id, content.
+    param_location: str  # Vị trí param: query, body hoặc json.
+    type_hint: str = "string"  # Kiểu suy luận từ recon: string, int, float...
+    sample_values: List[str] = field(default_factory=list)  # Giá trị mẫu đã thấy khi recon.
+    request_content_type: str = ""  # Content-Type gốc của request nếu có.
+    request_headers: Dict[str, str] = field(default_factory=dict)  # Headers gốc để gửi lại khi fuzz.
+    candidate_tests: List[str] = field(default_factory=list)  # Gợi ý scanner nên chạy: sqli, reflected_xss...
+    record: Dict[str, Any] = field(default_factory=dict)  # Record gốc từ inventory để cần thì dựng body/json.
 
     @property
     def key(self) -> str:
@@ -34,28 +34,28 @@ class FuzzTarget:
 class HttpExchange:
     """Kết quả sau khi gửi một request fuzz."""
 
-    method: str
-    url: str
-    status: int
-    headers: Dict[str, str]
-    text: str
-    elapsed_seconds: float
-    error: str | None = None
+    method: str  # HTTP method đã gửi.
+    url: str  # URL cuối cùng sau redirect nếu có.
+    status: int  # HTTP status code. Nếu lỗi network thì thường là 0.
+    headers: Dict[str, str]  # Response headers.
+    text: str  # Response body dạng text nếu đọc được.
+    elapsed_seconds: float  # Thời gian request, dùng cho time-based SQLi.
+    error: str | None = None  # Lỗi network/timeout nếu có.
 
 
 @dataclass
 class Finding:
     """Một kết quả nghi vấn được detector ghi nhận."""
 
-    vuln_type: str
-    subtype: str
-    severity: str
-    target: FuzzTarget
-    payload: str
-    evidence: str
-    request_url: str
-    status: int | None = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    vuln_type: str  # Nhóm lỗ hổng: xss hoặc sqli.
+    subtype: str  # Kiểu cụ thể: reflected, stored, error_based...
+    severity: str  # Mức độ: low, medium, high.
+    target: FuzzTarget  # Param/endpoint tạo ra finding.
+    payload: str  # Payload đã dùng.
+    evidence: str  # Bằng chứng chính khiến tool ghi finding.
+    request_url: str  # URL/request gây ra evidence.
+    status: int | None = None  # HTTP status nếu có.
+    details: Dict[str, Any] = field(default_factory=dict)  # Thông tin bổ sung cho người đọc report.
 
     def to_dict(self) -> Dict[str, Any]:
         return {

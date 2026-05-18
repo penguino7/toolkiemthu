@@ -114,12 +114,12 @@ class ReconNormalizer:
             return []
 
         body_text = body.decode("utf-8", errors="replace") if isinstance(body, bytes) else body
-        content_type = (content_type or "").lower()
+        lowered_content_type = (content_type or "").lower()
 
-        if "application/json" in content_type:
+        if "application/json" in lowered_content_type:
             return self._parse_json_body(body_text)
 
-        if "application/x-www-form-urlencoded" in content_type or "=" in body_text:
+        if "application/x-www-form-urlencoded" in lowered_content_type or "=" in body_text:
             return self._parse_form_body(body_text)
 
         return []
@@ -141,16 +141,19 @@ class ReconNormalizer:
         discovered_from: str | None = None,
         forms: List[Dict[str, Any]] | None = None,
     ) -> EndpointRecord:
-        normalized = self.absolute_url(url, base_url)
-        parsed = urlparse(normalized)
+        # Bước 1: chuẩn hóa URL để các crawler/importer dùng cùng một format.
+        normalized_url = self.absolute_url(url, base_url)
+        parsed_url = urlparse(normalized_url)
+
+        # Bước 2: tạo record lõi, chưa có params/evidence.
         record = EndpointRecord(
             method=method.upper(),
-            url=normalized,
-            scheme=parsed.scheme,
-            host=parsed.hostname or "",
-            port=parsed.port,
-            path=parsed.path or "/",
-            canonical_path=self.canonicalize_path(parsed.path or "/"),
+            url=normalized_url,
+            scheme=parsed_url.scheme,
+            host=parsed_url.hostname or "",
+            port=parsed_url.port,
+            path=parsed_url.path or "/",
+            canonical_path=self.canonicalize_path(parsed_url.path or "/"),
             auth_context=auth_context,
             request_content_type=request_content_type or "",
             response_content_type=response_content_type or "",
@@ -159,15 +162,17 @@ class ReconNormalizer:
             statuses=[status] if status else [],
             source_tools=[source_tool],
             discovered_from=[discovered_from] if discovered_from else [],
-            examples=[normalized],
+            examples=[normalized_url],
             forms=forms or [],
         )
 
-        for param in self.parse_query_params(normalized):
+        # Bước 3: gom param từ query string và request body/json.
+        for param in self.parse_query_params(normalized_url):
             record.add_param(param)
         for param in self.parse_body_params(body, request_content_type):
             record.add_param(param)
 
+        # Bước 4: gắn evidence quan sát được từ response hiện tại.
         self.mark_reflections(record, response_text, response_content_type)
         if self.detect_db_error(response_text):
             record.evidence["db_error_pattern"] = True
@@ -184,11 +189,11 @@ class ReconNormalizer:
 
         contexts = set(record.evidence.get("reflection_contexts", []))
         for param in record.params.values():
-            for value in param.sample_values:
-                if value and value in response_text:
+            for sample_value in param.sample_values:
+                if sample_value and sample_value in response_text:
                     param.reflected = True
                     record.evidence["has_reflection"] = True
-                    contexts.add(self.reflection_context(response_text, value, response_content_type))
+                    contexts.add(self.reflection_context(response_text, sample_value, response_content_type))
 
         if contexts:
             record.evidence["reflection_contexts"] = sorted(contexts)

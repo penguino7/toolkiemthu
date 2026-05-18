@@ -20,6 +20,7 @@ class XssRunner:
         options = self.config.get("xss", {})
         findings: List[Finding] = []
 
+        # Mỗi khối bên dưới chạy một loại XSS riêng, nhưng đều dùng chung target list.
         if options.get("reflected", True):
             scanner = ReflectedXssScanner(self.client, self.config)
             for target in targets:

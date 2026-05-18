@@ -39,6 +39,7 @@ class AuthManager:
         return selected
 
     def config_for_profile(self, profile: dict) -> dict:
+        # Mỗi auth profile nhận một bản config riêng để session/cookie không lẫn nhau.
         cloned = deepcopy(self.config)
         cloned["auth_context"] = profile.get("name", "anonymous")
         cloned["_auth_profile"] = profile
@@ -60,6 +61,7 @@ class AuthManager:
         method = profile.get("method", "POST").upper()
         data: Dict[str, str] = {str(k): str(v) for k, v in profile.get("data", {}).items()}
 
+        # Hiện tại hỗ trợ form login đơn giản: POST form hoặc GET login URL.
         if method == "POST":
             session.post_form(login_url, data)
         else:
@@ -83,19 +85,3 @@ class AuthManager:
 
     def _anonymous_profile(self) -> dict:
         return {"name": self.config.get("auth_context", "anonymous"), "type": "none"}
-
-
-def auth_profiles(config: dict) -> List[dict]:
-    return AuthManager(config).enabled_profiles()
-
-
-def config_for_profile(config: dict, profile: dict) -> dict:
-    return AuthManager(config).config_for_profile(profile)
-
-
-def login_static(session: HttpSession, config: dict, profile: dict) -> None:
-    AuthManager(config).login_with_form(session, config, profile)
-
-
-def profile_names(profiles: Iterable[dict]) -> str:
-    return AuthManager({}).profile_names(profiles)

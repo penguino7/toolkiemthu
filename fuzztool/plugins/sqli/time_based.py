@@ -3,13 +3,17 @@ from __future__ import annotations
 from typing import List
 
 from ...http_client import FuzzHttpClient
-from ...models import Finding, FuzzTarget, HttpExchange
+from ...models import Finding, FuzzTarget
 from ...mutator import RequestMutator
 from .payload_factory import SqliPayloadFactory
 
 
 class TimeBasedSqliScanner:
-    """SQLi time-based scanner."""
+    """Kiem tra SQLi time-based.
+
+    Scanner nay so sanh thoi gian response binh thuong voi response khi inject
+    payload SLEEP. Neu request payload cham hon ro rang thi ghi finding.
+    """
 
     def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
         self.client = client
@@ -21,54 +25,60 @@ class TimeBasedSqliScanner:
         self.payload_factory = SqliPayloadFactory(sleep_seconds=self.sleep_seconds)
 
     def scan(self, target: FuzzTarget) -> List[Finding]:
-        baseline = self._send_baseline(target)
-        if baseline.error:
+        # Buoc 1: gui request baseline de biet target binh thuong nhanh/cham the nao.
+        baseline_method, baseline_url, baseline_body, baseline_headers = self.mutator.baseline(target)
+        baseline_response = self.client.send(
+            baseline_method,
+            baseline_url,
+            body=baseline_body,
+            headers=baseline_headers,
+        )
+        if baseline_response.error:
             return []
 
-        for payload in self._payloads(target):
-            method, url, body, headers = self.mutator.mutate(target, payload)
-            exchange = self.client.send(method, url, body=body, headers=headers)
-            finding = self._finding_if_delayed(target, payload, baseline, exchange)
-            if finding:
-                return [finding]
+        payloads = self.payload_factory.time_payloads(target)
+        for payload in payloads:
+            # Buoc 2: gui request co payload delay, vi du SLEEP(3).
+            attack_method, attack_url, attack_body, attack_headers = self.mutator.mutate(target, payload)
+            attack_response = self.client.send(
+                attack_method,
+                attack_url,
+                body=attack_body,
+                headers=attack_headers,
+            )
+
+            # Buoc 3: so sanh thoi gian payload voi baseline.
+            delta_seconds = attack_response.elapsed_seconds - baseline_response.elapsed_seconds
+            timeout_after_stable_baseline = bool(
+                attack_response.error and attack_response.elapsed_seconds >= self.threshold
+            )
+            delayed_over_baseline = delta_seconds >= self.threshold
+            if not timeout_after_stable_baseline and not delayed_over_baseline:
+                continue
+
+            evidence = (
+                "request_timeout_after_stable_baseline"
+                if timeout_after_stable_baseline
+                else "response_delay_delta_over_threshold"
+            )
+            return [
+                Finding(
+                    vuln_type="sqli",
+                    subtype="time_based",
+                    severity="medium",
+                    target=target,
+                    payload=payload,
+                    evidence=evidence,
+                    request_url=attack_response.url,
+                    status=attack_response.status,
+                    details={
+                        "baseline_seconds": round(baseline_response.elapsed_seconds, 4),
+                        "payload_seconds": round(attack_response.elapsed_seconds, 4),
+                        "delta_seconds": round(delta_seconds, 4),
+                        "threshold": self.threshold,
+                        "sleep_seconds": self.sleep_seconds,
+                        "error": attack_response.error,
+                    },
+                )
+            ]
         return []
-
-    def _finding_if_delayed(
-        self,
-        target: FuzzTarget,
-        payload: str,
-        baseline: HttpExchange,
-        exchange: HttpExchange,
-    ) -> Finding | None:
-        delta = exchange.elapsed_seconds - baseline.elapsed_seconds
-        timeout_after_stable_baseline = bool(exchange.error and exchange.elapsed_seconds >= self.threshold)
-        delayed_over_baseline = delta >= self.threshold
-        if not timeout_after_stable_baseline and not delayed_over_baseline:
-            return None
-
-        evidence = "request_timeout_after_stable_baseline" if timeout_after_stable_baseline else "response_delay_delta_over_threshold"
-        return Finding(
-            vuln_type="sqli",
-            subtype="time_based",
-            severity="medium",
-            target=target,
-            payload=payload,
-            evidence=evidence,
-            request_url=exchange.url,
-            status=exchange.status,
-            details={
-                "baseline_seconds": round(baseline.elapsed_seconds, 4),
-                "payload_seconds": round(exchange.elapsed_seconds, 4),
-                "delta_seconds": round(delta, 4),
-                "threshold": self.threshold,
-                "sleep_seconds": self.sleep_seconds,
-                "error": exchange.error,
-            },
-        )
-
-    def _send_baseline(self, target: FuzzTarget) -> HttpExchange:
-        method, url, body, headers = self.mutator.baseline(target)
-        return self.client.send(method, url, body=body, headers=headers)
-
-    def _payloads(self, target: FuzzTarget) -> List[str]:
-        return self.payload_factory.time_payloads(target)

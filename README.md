@@ -232,6 +232,37 @@ fuzztool/plugins/sqli/runner.py
 fuzztool/reporter.py
 ```
 
+Khi đọc fuzz scanner, mở `runner.py` trước để biết scanner nào được gọi, sau đó mở từng file cụ thể:
+
+```text
+fuzztool/plugins/xss/reflected.py      reflected XSS
+fuzztool/plugins/xss/stored.py         stored XSS
+fuzztool/plugins/xss/dom.py            DOM XSS
+fuzztool/plugins/sqli/error_based.py   SQLi error-based
+fuzztool/plugins/sqli/boolean_based.py SQLi boolean-based
+fuzztool/plugins/sqli/time_based.py    SQLi time-based
+```
+
+Các hàm `scan()` trong những file này được viết theo kiểu tuyến tính:
+
+```text
+1. tạo payload
+2. tạo request/URL tấn công
+3. gửi request hoặc mở browser
+4. kiểm tra evidence
+5. ghi Finding nếu có bằng chứng
+```
+
+Các hàm recon chính cũng theo kiểu tương tự:
+
+```text
+StaticHtmlCrawler.crawl()   lấy seed -> request page -> parse link/form -> đưa link mới vào queue
+DynamicCrawler.crawl()      mở browser -> login nếu có -> nghe response -> tạo EndpointRecord
+ReconNormalizer.make_record() normalize URL -> tạo record -> thêm params -> gắn evidence
+RecordEnricher.enrich_one() đọc evidence/param -> gắn candidate_tests
+EndpointDeduplicator.dedupe() tạo fingerprint -> merge record trùng
+```
+
 Trọng tâm cần hiểu trước:
 
 ```text

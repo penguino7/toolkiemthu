@@ -20,6 +20,7 @@ class SqliRunner:
         options = self.config.get("sqli", {})
         findings: List[Finding] = []
 
+        # Mỗi khối bên dưới chạy một kiểu SQLi riêng.
         if options.get("error_based", True):
             scanner = ErrorBasedSqliScanner(self.client)
             for target in targets:

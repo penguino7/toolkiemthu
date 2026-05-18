@@ -8,6 +8,14 @@ from .models import FuzzTarget
 from .scope import FuzzScope
 
 
+XSS_TARGET_TESTS = {
+    "reflected_xss_candidate",
+    "stored_xss_candidate",
+    "api_xss_source",
+    "reflection_detected",
+}
+
+
 class InventoryLoader:
     """Đọc inventory.json từ recontool và chọn param để fuzz."""
 
@@ -22,14 +30,17 @@ class InventoryLoader:
     def targets_for(self, path: str, kinds: Iterable[str]) -> List[FuzzTarget]:
         kinds = set(kinds)
         records = self.load_records(path)
-        targets = []
+
+        targets: List[FuzzTarget] = []
         for record in records:
             if not self.scope.allows(record.get("url", "")):
                 continue
+
             for param in record.get("params", []):
                 target = self._target_from_param(record, param)
                 if target and self._matches_kind(target, kinds):
                     targets.append(target)
+
         return targets
 
     def _target_from_param(self, record: dict, param: dict) -> FuzzTarget | None:
@@ -55,8 +66,11 @@ class InventoryLoader:
 
     def _matches_kind(self, target: FuzzTarget, kinds: set[str]) -> bool:
         tests = set(target.candidate_tests)
-        if "xss" in kinds and tests & {"reflected_xss_candidate", "stored_xss_candidate", "api_xss_source", "reflection_detected"}:
+
+        if "xss" in kinds and tests & XSS_TARGET_TESTS:
             return True
+
         if "sqli" in kinds and any(test.startswith("sqli") for test in tests):
             return True
+
         return False

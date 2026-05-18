@@ -5,7 +5,7 @@ from http.cookiejar import CookieJar
 from typing import Dict
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import HTTPCookieProcessor, Request, build_opener, urlopen
+from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 
 @dataclass
@@ -61,6 +61,7 @@ class HttpSession:
         if headers:
             final_headers.update(headers)
 
+        # urllib cần bytes cho request body.
         data = None
         if body is not None:
             data = body if isinstance(body, bytes) else body.encode("utf-8")
@@ -88,8 +89,3 @@ class HttpSession:
         content_type = headers_dict.get("content-type", "")
         text = self.decoder.decode(raw_body, content_type) if self.decoder.should_decode(content_type) else ""
         return HttpResult(url, status, headers_dict, text)
-
-
-def fetch_url(url: str, headers: Dict[str, str] | None = None, timeout: int = 10) -> HttpResult:
-    """Wrapper đơn giản cho code cũ hoặc test nhanh."""
-    return HttpSession(headers=headers or {}, timeout=timeout).get(url)

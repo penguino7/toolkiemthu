@@ -21,6 +21,8 @@ class ReconExporter:
 
     def export_all(self, records: List[EndpointRecord], output_dir: str | Path) -> None:
         output = self.ensure_dir(output_dir)
+
+        # Một lần export sinh đủ các file người học cần đọc sau recon.
         self.export_json(records, output / "inventory.json")
         self.export_markdown(records, output / "inventory.md")
         self.export_params(records, output / "params.txt")
@@ -73,16 +75,20 @@ class ReconExporter:
         Path(output_path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def _endpoint_table_row(self, record: EndpointRecord) -> str:
-        params = ", ".join(f"{p.location}:{p.name}" for p in record.params.values()) or "-"
+        params_text = ", ".join(f"{p.location}:{p.name}" for p in record.params.values()) or "-"
+        statuses_text = ",".join(str(status) for status in record.statuses) or "-"
+        tests_text = ", ".join(record.candidate_tests) or "-"
+        sources_text = ", ".join(record.source_tools) or "-"
+
         return "| {method} | `{path}` | {params} | {auth} | {status} | {ctype} | {tests} | {sources} |".format(
             method=record.method,
             path=self._md_escape(record.canonical_path),
-            params=self._md_escape(params),
+            params=self._md_escape(params_text),
             auth=self._md_escape(record.auth_context),
-            status=self._md_escape(",".join(str(s) for s in record.statuses) or "-"),
+            status=self._md_escape(statuses_text),
             ctype=self._md_escape(record.response_content_type or "-"),
-            tests=self._md_escape(", ".join(record.candidate_tests) or "-"),
-            sources=self._md_escape(", ".join(record.source_tools) or "-"),
+            tests=self._md_escape(tests_text),
+            sources=self._md_escape(sources_text),
         )
 
     def _append_record_detail(self, lines: List[str], index: int, record: EndpointRecord) -> None:
@@ -174,27 +180,3 @@ class ReconExporter:
 
     def _md_escape(self, value) -> str:
         return str(value).replace("|", "\\|").replace("\n", " ")
-
-
-def ensure_dir(path: str | Path) -> Path:
-    return ReconExporter().ensure_dir(path)
-
-
-def export_json(records: Iterable[EndpointRecord], output_path: str | Path) -> None:
-    ReconExporter().export_json(records, output_path)
-
-
-def export_markdown(records: List[EndpointRecord], output_path: str | Path) -> None:
-    ReconExporter().export_markdown(records, output_path)
-
-
-def export_params(records: Iterable[EndpointRecord], output_path: str | Path) -> None:
-    ReconExporter().export_params(records, output_path)
-
-
-def export_test_plan(records: List[EndpointRecord], output_path: str | Path) -> None:
-    ReconExporter().export_test_plan(records, output_path)
-
-
-def export_all(records: List[EndpointRecord], output_dir: str | Path) -> None:
-    ReconExporter().export_all(records, output_dir)
