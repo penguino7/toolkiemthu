@@ -54,22 +54,22 @@ class ReconApplication:
         self.exporter = exporter or ReconExporter()
 
     def run(self, argv=None) -> int:
-        args = self.parser_builder.build().parse_args(argv)
-        config = self.config_loader.load(args.config)
-        self._apply_cli_overrides(config, args)
-
-        all_records = self._collect_records(config, args)
-        print(f"[*] Raw records: {len(all_records)}")
-
-        enriched = self.enricher.enrich_many(all_records)
-        mode = config.get("dedupe", {}).get("mode", "smart")
-        merged = EndpointDeduplicator(mode=mode).dedupe(enriched)
-        print(f"[*] Records after dedupe ({mode}): {len(merged)}")
-
-        output_dir = Path(config.get("output_dir", "recon-output"))
-        self.exporter.export_all(merged, output_dir)
+        # Luồng chính: đọc cấu hình -> thu thập -> làm giàu/lọc trùng -> xuất file.
+        args = self._parse_args(argv)
+        config = self._load_config(args)
+        raw_records = self._discover_records(config, args)
+        final_records = self._prepare_records(raw_records, config)
+        output_dir = self._export_records(final_records, config)
         self._print_outputs(output_dir)
         return 0
+
+    def _parse_args(self, argv=None) -> argparse.Namespace:
+        return self.parser_builder.build().parse_args(argv)
+
+    def _load_config(self, args: argparse.Namespace) -> dict:
+        config = self.config_loader.load(args.config)
+        self._apply_cli_overrides(config, args)
+        return config
 
     def _apply_cli_overrides(self, config: dict, args: argparse.Namespace) -> None:
         if args.base_url:
@@ -91,11 +91,27 @@ class ReconApplication:
             config.setdefault("imports", {}).setdefault("manual_seed_files", [])
             config["imports"]["manual_seed_files"].extend(args.manual)
 
-    def _collect_records(self, config: dict, args: argparse.Namespace) -> List[EndpointRecord]:
+    def _discover_records(self, config: dict, args: argparse.Namespace) -> List[EndpointRecord]:
         records: List[EndpointRecord] = []
         records.extend(self._run_crawlers(config, args))
         records.extend(self._run_importers(config))
+        print(f"[*] Raw records: {len(records)}")
         return records
+
+    def _prepare_records(self, records: List[EndpointRecord], config: dict) -> List[EndpointRecord]:
+        enriched = self.enricher.enrich_many(records)
+        mode = self._dedupe_mode(config)
+        merged = EndpointDeduplicator(mode=mode).dedupe(enriched)
+        print(f"[*] Records after dedupe ({mode}): {len(merged)}")
+        return merged
+
+    def _dedupe_mode(self, config: dict) -> str:
+        return config.get("dedupe", {}).get("mode", "smart")
+
+    def _export_records(self, records: List[EndpointRecord], config: dict) -> Path:
+        output_dir = Path(config.get("output_dir", "recon-output"))
+        self.exporter.export_all(records, output_dir)
+        return output_dir
 
     def _run_crawlers(self, config: dict, args: argparse.Namespace) -> List[EndpointRecord]:
         records: List[EndpointRecord] = []
@@ -144,10 +160,6 @@ class ReconApplication:
         print(f"[*] Wrote: {output_dir / 'inventory.md'}")
         print(f"[*] Wrote: {output_dir / 'params.txt'}")
         print(f"[*] Wrote: {output_dir / 'test_plan.md'}")
-
-
-def build_parser() -> argparse.ArgumentParser:
-    return CliArgumentParser().build()
 
 
 def main(argv=None) -> int:

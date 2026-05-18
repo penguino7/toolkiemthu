@@ -262,7 +262,3 @@ class DynamicCrawler:
             f"resource_filtered={self.stats['skipped_resource_type']} "
             f"navigation_errors={self.stats['navigation_errors']}"
         )
-
-
-def crawl_dynamic(config: dict) -> list:
-    return DynamicCrawler(config).crawl()

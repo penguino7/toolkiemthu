@@ -190,7 +190,3 @@ class StaticHtmlCrawler:
             if name:
                 pairs.append((name, item.get("value", "")))
         return urlencode(pairs)
-
-
-def crawl_static(config: dict) -> list:
-    return StaticHtmlCrawler(config).crawl()

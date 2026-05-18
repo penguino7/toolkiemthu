@@ -98,11 +98,3 @@ class RecordEnricher:
     def _is_probably_xss_param(self, param: Param) -> bool:
         name = param.name.lower()
         return param.reflected or name in TEXT_NAMES or any(token in name for token in ["name", "text", "html", "desc"])
-
-
-def enrich_record(record: EndpointRecord) -> EndpointRecord:
-    return RecordEnricher().enrich_one(record)
-
-
-def enrich_records(records: Iterable[EndpointRecord]) -> List[EndpointRecord]:
-    return RecordEnricher().enrich_many(records)

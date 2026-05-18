@@ -209,6 +209,51 @@ EndpointDeduplicator  gom endpoint trùng
 ReconExporter         xuất inventory/test_plan
 ```
 
+## Cách Đọc Source Nhanh
+
+Khi mới đọc code, không cần mở tất cả file cùng lúc. Nên đọc theo thứ tự này:
+
+```text
+run_recon.sh
+recontool/cli.py
+recontool/crawlers/static_html.py
+recontool/crawlers/playwright_dynamic.py
+recontool/normalizer.py
+recontool/enrich.py
+recontool/dedupe.py
+recontool/exporters.py
+
+run_fuzz.sh
+fuzztool/cli.py
+fuzztool/inventory_loader.py
+fuzztool/mutator.py
+fuzztool/plugins/xss/runner.py
+fuzztool/plugins/sqli/runner.py
+fuzztool/reporter.py
+```
+
+Trọng tâm cần hiểu trước:
+
+```text
+ReconApplication.run()  luồng chính của recon
+FuzzApplication.run()   luồng chính của fuzz
+EndpointRecord          một endpoint sau khi recon
+FuzzTarget              một param sẽ được fuzz
+RequestMutator          thay giá trị param bằng payload
+Finding                 kết quả fuzz đã có bằng chứng
+```
+
+Các file có thể đọc sau:
+
+```text
+http_client.py          chi tiết gửi HTTP request
+scope.py                luật giới hạn domain/path
+auth.py                 login/auth profile
+payloads.txt            danh sách payload
+detector.py             luật nhận diện evidence
+browser_verifier.py     xác minh XSS bằng Playwright
+```
+
 ## FuzzTool
 
 Fuzztool làm các việc:

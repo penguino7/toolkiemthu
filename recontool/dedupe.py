@@ -49,11 +49,3 @@ class EndpointDeduplicator:
 
     def _param_names(self, record: EndpointRecord, location: str) -> List[str]:
         return sorted(param.name for param in record.params.values() if param.location == location)
-
-
-def fingerprint(record: EndpointRecord, mode: str = "strict") -> str:
-    return EndpointDeduplicator(mode=mode).fingerprint(record)
-
-
-def dedupe(records: Iterable[EndpointRecord], mode: str = "smart") -> List[EndpointRecord]:
-    return EndpointDeduplicator(mode=mode).dedupe(records)

@@ -13,6 +13,14 @@ from .plugins.xss.runner import XssRunner
 from .reporter import FuzzReporter
 
 
+XSS_TARGET_TESTS = {
+    "reflected_xss_candidate",
+    "stored_xss_candidate",
+    "api_xss_source",
+    "reflection_detected",
+}
+
+
 class FuzzCliParser:
     """Parser dong lenh cho fuzztool."""
 
@@ -43,37 +51,32 @@ class FuzzApplication:
         self.reporter = reporter or FuzzReporter()
 
     def run(self, argv=None) -> int:
-        args = FuzzCliParser().build().parse_args(argv)
-        config = self.loader.load(args.config)
-        self._apply_overrides(config, args)
+        # Luồng chính: đọc inventory -> chọn target -> fuzz -> ghi findings.
+        args = self._parse_args(argv)
+        config = self._load_config(args)
 
         selected = self._selected_kinds(config)
         if not selected:
             print("[!] Chua chon scanner. Dung --xss, --sqli hoac bat trong config.")
             return 2
 
-        targets = InventoryLoader(config).targets_for(args.inventory, selected)
-        targets = self._filter_post_targets(targets, config)
-        self._print_scanner_summary(config)
-        self._print_safety_warnings(config)
-        print(f"[*] Selected targets: {len(targets)}")
+        targets = self._load_targets(args.inventory, selected, config)
+        self._print_scan_plan(config, targets)
 
-        if config.get("safety", {}).get("dry_run", False):
-            self._print_targets(targets)
-            self.reporter.export([], config.get("output_dir", "fuzz-output"))
-            return 0
+        if self._is_dry_run(config):
+            return self._run_dry_run(targets, config)
 
-        client = self._build_client(config)
-        findings = self._run_scanners(config, client, targets)
-        output_dir = config.get("output_dir", "fuzz-output")
-        self.reporter.export(findings, output_dir)
-        print(f"[*] Findings: {len(findings)}")
-        print(f"[*] Requests sent: {client.request_count}")
-        if client.error_count:
-            print(f"[!] Request errors: {client.error_count} (timeouts: {client.timeout_count})")
-        print(f"[*] Wrote: {Path(output_dir) / 'findings.json'}")
-        print(f"[*] Wrote: {Path(output_dir) / 'findings.md'}")
+        findings, client = self._scan_targets(config, targets)
+        self._write_report(findings, client, config)
         return 0
+
+    def _parse_args(self, argv=None) -> argparse.Namespace:
+        return FuzzCliParser().build().parse_args(argv)
+
+    def _load_config(self, args: argparse.Namespace) -> dict:
+        config = self.loader.load(args.config)
+        self._apply_overrides(config, args)
+        return config
 
     def _apply_overrides(self, config: dict, args: argparse.Namespace) -> None:
         if args.out:
@@ -144,6 +147,23 @@ class FuzzApplication:
             return targets
         return [target for target in targets if target.param_location == "query"]
 
+    def _load_targets(self, inventory_path: str, selected: set[str], config: dict) -> List[FuzzTarget]:
+        targets = InventoryLoader(config).targets_for(inventory_path, selected)
+        return self._filter_post_targets(targets, config)
+
+    def _print_scan_plan(self, config: dict, targets: List[FuzzTarget]) -> None:
+        self._print_scanner_summary(config)
+        self._print_safety_warnings(config)
+        print(f"[*] Selected targets: {len(targets)}")
+
+    def _is_dry_run(self, config: dict) -> bool:
+        return bool(config.get("safety", {}).get("dry_run", False))
+
+    def _run_dry_run(self, targets: List[FuzzTarget], config: dict) -> int:
+        self._print_targets(targets)
+        self.reporter.export([], config.get("output_dir", "fuzz-output"))
+        return 0
+
     def _build_client(self, config: dict) -> FuzzHttpClient:
         safety = config.get("safety", {})
         return FuzzHttpClient(
@@ -165,28 +185,41 @@ class FuzzApplication:
             print(f"[!] {error}")
         return findings
 
+    def _scan_targets(self, config: dict, targets: List[FuzzTarget]) -> tuple[List[Finding], FuzzHttpClient]:
+        client = self._build_client(config)
+        findings = self._run_scanners(config, client, targets)
+        return findings, client
+
+    def _write_report(self, findings: List[Finding], client: FuzzHttpClient, config: dict) -> None:
+        output_dir = config.get("output_dir", "fuzz-output")
+        self.reporter.export(findings, output_dir)
+        print(f"[*] Findings: {len(findings)}")
+        print(f"[*] Requests sent: {client.request_count}")
+        if client.error_count:
+            print(f"[!] Request errors: {client.error_count} (timeouts: {client.timeout_count})")
+        print(f"[*] Wrote: {Path(output_dir) / 'findings.json'}")
+        print(f"[*] Wrote: {Path(output_dir) / 'findings.md'}")
+
     def _print_scanner_summary(self, config: dict) -> None:
         if config.get("xss", {}).get("enabled", False):
             xss = config.get("xss", {})
-            active = []
-            if xss.get("reflected", False):
-                active.append("reflected")
-            if xss.get("dom", False):
-                active.append("dom")
-            if xss.get("stored", False):
-                active.append("stored")
+            active = self._enabled_names(xss, [("reflected", "reflected"), ("dom", "dom"), ("stored", "stored")])
             print(f"[*] XSS scanners: {', '.join(active) if active else 'none'}")
 
         if config.get("sqli", {}).get("enabled", False):
             sqli = config.get("sqli", {})
-            active = []
-            if sqli.get("error_based", False):
-                active.append("error-based")
-            if sqli.get("boolean_based", False):
-                active.append("boolean-based")
-            if sqli.get("time_based", False):
-                active.append("time-based")
+            active = self._enabled_names(
+                sqli,
+                [
+                    ("error_based", "error-based"),
+                    ("boolean_based", "boolean-based"),
+                    ("time_based", "time-based"),
+                ],
+            )
             print(f"[*] SQLi scanners: {', '.join(active) if active else 'none'}")
+
+    def _enabled_names(self, section: dict, options: list[tuple[str, str]]) -> List[str]:
+        return [display_name for key, display_name in options if section.get(key, False)]
 
     def _print_safety_warnings(self, config: dict) -> None:
         stored_enabled = bool(config.get("xss", {}).get("stored", False))
@@ -195,7 +228,7 @@ class FuzzApplication:
 
     def _is_xss_target(self, target: FuzzTarget) -> bool:
         tests = set(target.candidate_tests)
-        return bool(tests & {"reflected_xss_candidate", "stored_xss_candidate", "api_xss_source", "reflection_detected"})
+        return bool(tests & XSS_TARGET_TESTS)
 
     def _is_sqli_target(self, target: FuzzTarget) -> bool:
         return any(test.startswith("sqli") for test in target.candidate_tests)
