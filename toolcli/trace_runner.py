@@ -71,12 +71,12 @@ def print_transaction(
     print("┌" + "─" * 70, flush=True)
     if payload_info:
         print(f"│ PAYLOAD  {payload_info.get('target', '-')}", flush=True)
-        print(f"│          {short_text(payload_info.get('payload', ''), 92)}", flush=True)
+        print(f"│          {short_text(payload_info.get('payload', ''), 360)}", flush=True)
         print("│", flush=True)
 
     print(f"│ REQUEST  {str(method).upper()} {summarize_url(url)}", flush=True)
     if body:
-        print(f"│ BODY     {short_text(body, 92)}", flush=True)
+        print(f"│ BODY     {short_text(body, 220)}", flush=True)
 
     status = getattr(response, "status", "-")
     elapsed = getattr(response, "elapsed_seconds", None)
@@ -112,7 +112,7 @@ def short_text(value: Any, limit: int = 240) -> str:
     text = str(value).replace("\n", "\\n").replace("\r", "")
     if len(text) <= limit:
         return text
-    return text[:limit] + "...<trimmed>"
+    return text[:limit] + "..."
 
 
 def compact_target(value: Any) -> str:
