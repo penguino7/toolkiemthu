@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "base_url": "http://127.0.0.1:8080",
+    "base_url": "http://127.0.0.1:12001",
     "headers": {"User-Agent": "FuzzTool/0.1"},
     "scope": {
         "include_hosts": ["127.0.0.1", "localhost"],

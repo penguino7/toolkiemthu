@@ -42,25 +42,25 @@ python -m playwright install-deps chromium
 Giả sử lab chạy tại:
 
 ```text
-http://127.0.0.1:8080
+http://127.0.0.1:12001
 ```
 
 Chạy static recon:
 
 ```bash
-bash run_recon.sh http://127.0.0.1:8080
+bash run_recon.sh http://127.0.0.1:12001
 ```
 
 Chạy cả static và dynamic recon:
 
 ```bash
-bash run_recon.sh http://127.0.0.1:8080 --dynamic
+bash run_recon.sh http://127.0.0.1:12001 --dynamic
 ```
 
 Cài Playwright trong lúc chạy nếu chưa cài:
 
 ```bash
-bash run_recon.sh http://127.0.0.1:8080 --dynamic --install-playwright
+bash run_recon.sh http://127.0.0.1:12001 --dynamic --install-playwright
 ```
 
 Output recon:

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="http://127.0.0.1:8080"
+BASE_URL="http://127.0.0.1:12001"
 OUTPUT_DIR="recon-output"
 CONFIG_FILE="config.example.json"
 DYNAMIC=0
@@ -15,10 +15,10 @@ Usage:
 
 Examples:
   ./run_recon.sh
-  ./run_recon.sh http://127.0.0.1:8080
-  ./run_recon.sh http://127.0.0.1:8080 --dynamic
-  ./run_recon.sh http://127.0.0.1:8080 --dynamic --install-playwright
-  ./run_recon.sh http://127.0.0.1:8080 --out recon-newshub
+  ./run_recon.sh http://127.0.0.1:12001
+  ./run_recon.sh http://127.0.0.1:12001 --dynamic
+  ./run_recon.sh http://127.0.0.1:12001 --dynamic --install-playwright
+  ./run_recon.sh http://127.0.0.1:12001 --out recon-newshub
 
 Options:
   --dynamic              Bat Playwright dynamic crawler.

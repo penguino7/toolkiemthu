@@ -5,7 +5,7 @@
 ## Luồng Dùng
 
 ```bash
-bash run_recon.sh http://127.0.0.1:8080 --dynamic
+bash run_recon.sh http://127.0.0.1:12001 --dynamic
 bash run_fuzz.sh recon-output/inventory.json --xss --sqli
 ```
 

@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "base_url": "http://127.0.0.1:8080",
+    "base_url": "http://127.0.0.1:12001",
     "auth_context": "anonymous",
     "headers": {
         "User-Agent": "ReconTool/0.1"

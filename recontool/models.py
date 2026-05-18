@@ -93,10 +93,10 @@ class EndpointRecord:
     """
 
     method: str  # HTTP method: GET, POST, PUT, PATCH, DELETE...
-    url: str  # URL đầy đủ đã normalize, ví dụ: http://127.0.0.1:8080/search.php?q=test.
+    url: str  # URL đầy đủ đã normalize, ví dụ: http://127.0.0.1:12001/search.php?q=test.
     scheme: str  # Giao thức: http hoặc https.
     host: str  # Host/domain, ví dụ: 127.0.0.1, localhost, example.com.
-    port: int | None  # Port nếu URL có ghi rõ, ví dụ: 8080; nếu không có thì None.
+    port: int | None  # Port nếu URL có ghi rõ, ví dụ: 12001; nếu không có thì None.
     path: str  # Path thật của URL, ví dụ: /search.php hoặc /api/spa/news.php.
     canonical_path: str  # Path dùng để dedupe, ví dụ: /news/{int} thay cho /news/1.
     auth_context: str = "anonymous"  # Context khi phát hiện endpoint: anonymous, admin, user...
