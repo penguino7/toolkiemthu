@@ -27,6 +27,7 @@ class FuzzCliParser:
     def build(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description="Fuzz tool doc inventory.json tu recontool")
         parser.add_argument("inventory", help="Duong dan inventory.json sinh boi recontool")
+        parser.add_argument("--base-url", help="Override host/port khi fuzz inventory cu hoac doi cong lab")
         parser.add_argument("-c", "--config", default="fuzz.config.example.json", help="File config fuzz")
         parser.add_argument("-o", "--out", help="Thu muc output")
         parser.add_argument("--xss", action="store_true", help="Bat tat ca XSS: reflected, DOM, stored")
@@ -81,6 +82,8 @@ class FuzzApplication:
     def _apply_overrides(self, config: dict, args: argparse.Namespace) -> None:
         if args.out:
             config["output_dir"] = args.out
+        if args.base_url:
+            config["base_url"] = args.base_url.rstrip("/")
         if args.include_post:
             config.setdefault("safety", {})["include_post"] = True
         if args.max_requests is not None:
@@ -170,6 +173,8 @@ class FuzzApplication:
             headers=config.get("headers", {}),
             max_requests=int(safety.get("max_requests", 100)),
             delay_seconds=float(safety.get("delay_seconds", 0.0)),
+            timeout=int(safety.get("request_timeout_seconds", 15)),
+            use_environment_proxy=bool(safety.get("use_environment_proxy", False)),
         )
 
     def _run_scanners(self, config: dict, client: FuzzHttpClient, targets: List[FuzzTarget]) -> List[Finding]:

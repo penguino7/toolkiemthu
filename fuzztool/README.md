@@ -6,8 +6,10 @@
 
 ```bash
 bash run_recon.sh http://127.0.0.1:12001 --dynamic
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli
+bash run_fuzz.sh recon-output/inventory.json --base-url http://127.0.0.1:12001 --xss --sqli
 ```
+
+`--base-url` giúp fuzztool rewrite host/port từ inventory sang lab đang chạy hiện tại. Mặc định fuzztool không dùng proxy từ biến môi trường; muốn đi qua proxy thì bật `use_environment_proxy` trong `fuzz.config.example.json`.
 
 ## Chế Độ An Toàn
 

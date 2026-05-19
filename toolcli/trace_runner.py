@@ -120,17 +120,21 @@ def compact_target(value: Any) -> str:
     return short_text(text, 96)
 
 
-def summarize_url(value: Any, limit: int = 110) -> str:
+def summarize_url(value: Any, limit: int = 150) -> str:
     parsed = urlparse(str(value))
-    path = parsed.path or str(value)
+    if parsed.scheme and parsed.netloc:
+        base = f"{parsed.scheme}://{parsed.netloc}{parsed.path or '/'}"
+    else:
+        base = parsed.path or str(value)
+
     if not parsed.query:
-        return short_text(path, limit)
+        return short_text(base, limit)
 
     pairs = []
     for name, raw_value in parse_qsl(parsed.query, keep_blank_values=True):
         pairs.append(f"{name}={short_text(raw_value, 34)}")
 
-    return short_text(f"{path}?{'&'.join(pairs)}", limit)
+    return short_text(f"{base}?{'&'.join(pairs)}", limit)
 
 
 def format_size(value: Any) -> str:

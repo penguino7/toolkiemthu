@@ -13,6 +13,7 @@ Examples:
   bash run_fuzz.sh recon-output/inventory.json --xss --sqli
   bash run_fuzz.sh recon-output/inventory.json --xss
   bash run_fuzz.sh recon-output/inventory.json --sqli
+  bash run_fuzz.sh recon-output/inventory.json --base-url http://127.0.0.1:12001 --xss --sqli
   bash run_fuzz.sh recon-output/inventory.json --xss --dry-run
 EOF
   exit 2

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Iterable, List
+from urllib.parse import urljoin, urlparse, urlunparse
 
 from .models import FuzzTarget
 from .scope import FuzzScope
@@ -21,6 +22,7 @@ class InventoryLoader:
 
     def __init__(self, config: dict) -> None:
         self.config = config
+        self.base_url = str(config.get("base_url", "")).rstrip("/")
         self.scope = FuzzScope(config)
         self.skip_names = {name.lower() for name in config.get("safety", {}).get("skip_param_names", [])}
 
@@ -33,17 +35,39 @@ class InventoryLoader:
 
         targets: List[FuzzTarget] = []
         for record in records:
-            if not self.scope.allows(record.get("url", "")):
+            record_url = self._record_url(record)
+            fuzz_url = self._url_for_fuzz(record_url)
+            if not self.scope.allows(fuzz_url):
                 continue
 
             for param in record.get("params", []):
-                target = self._target_from_param(record, param)
+                target = self._target_from_param(record, param, fuzz_url)
                 if target and self._matches_kind(target, kinds):
                     targets.append(target)
 
         return targets
 
-    def _target_from_param(self, record: dict, param: dict) -> FuzzTarget | None:
+    def _record_url(self, record: dict) -> str:
+        examples = record.get("examples") or []
+        if examples:
+            return str(examples[0] or record.get("url", ""))
+        return str(record.get("url", ""))
+
+    def _url_for_fuzz(self, raw_url: str) -> str:
+        if not self.base_url:
+            return raw_url
+
+        base = urlparse(self.base_url)
+        if not base.scheme or not base.netloc:
+            return raw_url
+
+        parsed = urlparse(raw_url)
+        if not parsed.scheme and not parsed.netloc:
+            return urljoin(self.base_url + "/", raw_url.lstrip("/"))
+
+        return urlunparse((base.scheme, base.netloc, parsed.path or "/", parsed.params, parsed.query, parsed.fragment))
+
+    def _target_from_param(self, record: dict, param: dict, fuzz_url: str) -> FuzzTarget | None:
         name = str(param.get("name", ""))
         location = str(param.get("location", ""))
         if not name or name.lower() in self.skip_names:
@@ -51,7 +75,7 @@ class InventoryLoader:
 
         return FuzzTarget(
             method=str(record.get("method", "GET")).upper(),
-            url=str(record.get("examples", [record.get("url", "")])[0] or record.get("url", "")),
+            url=fuzz_url,
             path=str(record.get("canonical_path") or record.get("path") or ""),
             auth_context=str(record.get("auth_context", "anonymous")),
             param_name=name,

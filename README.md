@@ -120,6 +120,14 @@ recon-output/test_plan.md
 
 Fuzztool đọc file `inventory.json` sinh bởi recontool.
 
+Nếu inventory được tạo ở port cũ, dùng `--base-url` để ép fuzztool gọi đúng lab hiện tại. Khi chạy bằng menu, Base URL trong phần settings sẽ được truyền tự động cho fuzz.
+
+```bash
+bash run_fuzz.sh recon-output/inventory.json --base-url http://127.0.0.1:12001 --xss --sqli
+```
+
+Mặc định fuzztool không dùng proxy từ biến môi trường để tránh trường hợp Python đi qua proxy khác với `curl`. Nếu muốn cố tình đi qua Burp/ZAP, bật `use_environment_proxy` trong `fuzz.config.example.json`.
+
 Xem target trước, không gửi request:
 
 ```bash

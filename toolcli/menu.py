@@ -118,7 +118,7 @@ class ToolCliMenu:
         self.state.inventory_path = f"{self.state.recon_output}/inventory.json"
 
     def run_fuzz(self, flags: List[str], title: str) -> None:
-        args = [self.state.inventory_path, *flags, "--out", self.state.fuzz_output]
+        args = [self.state.inventory_path, "--base-url", self.state.base_url, *flags, "--out", self.state.fuzz_output]
         if self.state.max_requests:
             args.extend(["--max-requests", self.state.max_requests])
 

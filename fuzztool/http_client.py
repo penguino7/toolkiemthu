@@ -6,7 +6,7 @@ from http.cookiejar import CookieJar
 from socket import timeout as SocketTimeout
 from typing import Dict
 from urllib.error import HTTPError, URLError
-from urllib.request import HTTPCookieProcessor, Request, build_opener
+from urllib.request import HTTPCookieProcessor, ProxyHandler, Request, build_opener
 
 from .models import HttpExchange
 
@@ -24,12 +24,16 @@ class FuzzHttpClient:
     cookie_jar: CookieJar = field(default_factory=CookieJar)
     max_requests: int | None = None
     delay_seconds: float = 0.0
+    use_environment_proxy: bool = False
     request_count: int = 0
     error_count: int = 0
     timeout_count: int = 0
 
     def __post_init__(self) -> None:
-        self.opener = build_opener(HTTPCookieProcessor(self.cookie_jar))
+        handlers = [HTTPCookieProcessor(self.cookie_jar)]
+        if not self.use_environment_proxy:
+            handlers.insert(0, ProxyHandler({}))
+        self.opener = build_opener(*handlers)
 
     def send(
         self,
