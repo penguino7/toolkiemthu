@@ -10,7 +10,7 @@ from .runner import LiveCommandRunner
 
 @dataclass
 class LauncherState:
-    """Các giá trị người dùng có thể đổi trong menu."""
+    """User-editable values stored while the menu is running."""
 
     base_url: str = "http://127.0.0.1:12001"
     recon_output: str = "recon-output"
@@ -24,7 +24,7 @@ class LauncherState:
 
 
 class ToolCliMenu:
-    """Menu terminal để chạy recon/fuzz bằng phím số."""
+    """Terminal launcher for recon, fuzz, and AI workflows."""
 
     def __init__(self) -> None:
         self.root = Path(__file__).resolve().parents[1]
@@ -34,7 +34,7 @@ class ToolCliMenu:
     def run(self) -> int:
         while True:
             self._print_menu()
-            choice = input("Chọn: ").strip()
+            choice = input("Choose: ").strip()
 
             if choice == "1":
                 self.run_recon(dynamic=False)
@@ -60,12 +60,14 @@ class ToolCliMenu:
                 self.edit_tool_settings()
             elif choice == "12":
                 self.edit_ai_settings()
+            elif choice == "13":
+                self.test_ai_provider()
             elif choice == "0":
                 return 0
             else:
-                print("[!] Lựa chọn không hợp lệ.")
+                print("[!] Invalid choice.")
 
-            input("\nNhấn Enter để quay lại menu...")
+            input("\nPress Enter to return to menu...")
 
     def _print_menu(self) -> None:
         print("")
@@ -82,24 +84,25 @@ class ToolCliMenu:
         print(f"AI config     : {self.state.ai_config}")
         print(f"AI output     : {self.state.ai_output}")
         print("-" * 72)
-        print("1. Chạy recon tĩnh")
-        print("2. Chạy recon tĩnh + dynamic Playwright")
-        print("3. Chạy fuzz XSS")
-        print("4. Chạy fuzz SQLi")
-        print("5. Chạy fuzz XSS + SQLi")
-        print("6. Dry-run fuzz all")
-        print("7. Xem tóm tắt inventory")
-        print("8. Xem tóm tắt findings")
-        print("9. Chạy AI analysis")
-        print("10. Xem tóm tắt AI report")
-        print("11. Cài đặt recon/fuzz")
-        print("12. Cài đặt AI")
-        print("0. Thoát")
+        print("1. Run static recon")
+        print("2. Run static + dynamic Playwright recon")
+        print("3. Run XSS fuzz")
+        print("4. Run SQLi fuzz")
+        print("5. Run XSS + SQLi fuzz")
+        print("6. Dry-run all fuzz")
+        print("7. Show inventory summary")
+        print("8. Show findings summary")
+        print("9. Run AI analysis")
+        print("10. Show AI report summary")
+        print("11. Recon/fuzz settings")
+        print("12. AI settings")
+        print("13. Test AI provider/API key")
+        print("0. Exit")
 
     def run_recon(self, dynamic: bool) -> None:
         args = [
             "-c",
-            "config.example.json",
+            "recon.config.example.json",
             "--base-url",
             self.state.base_url,
             "--out",
@@ -133,6 +136,14 @@ class ToolCliMenu:
         ]
         self.runner.run_python_module("ai-analysis", "aitool", args)
 
+    def test_ai_provider(self) -> None:
+        args = [
+            "--config",
+            self.state.ai_config,
+            "--test-provider",
+        ]
+        self.runner.run_python_module("ai-provider-test", "aitool", args)
+
     def _module_and_args(self, tool_name: str, args: List[str]) -> tuple[str, List[str]]:
         if self.state.trace_log:
             return "toolcli.trace_runner", [tool_name, *args]
@@ -140,7 +151,7 @@ class ToolCliMenu:
 
     def edit_tool_settings(self) -> None:
         print("")
-        print("Cài đặt recon/fuzz. Bỏ trống để giữ nguyên giá trị hiện tại.")
+        print("Recon/fuzz settings. Leave blank to keep the current value.")
         self.state.base_url = self._ask("Base URL", self.state.base_url)
         self.state.recon_output = self._ask("Recon output", self.state.recon_output)
         self.state.inventory_path = self._ask("Inventory path", self.state.inventory_path)
@@ -152,7 +163,7 @@ class ToolCliMenu:
 
     def edit_ai_settings(self) -> None:
         print("")
-        print("Cài đặt AI. Bỏ trống để giữ nguyên giá trị hiện tại.")
+        print("AI settings. Leave blank to keep the current value.")
         self.state.ai_config = self._ask("AI config", self.state.ai_config)
         self.state.ai_output = self._ask("AI output", self.state.ai_output)
         self.state.findings_path = self._ask("Findings path", self.state.findings_path)
@@ -218,12 +229,12 @@ class ToolCliMenu:
 
     def _read_json(self, path: Path):
         if not path.exists():
-            print(f"[!] Chưa có file: {path}")
+            print(f"[!] Missing file: {path}")
             return None
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as error:
-            print(f"[!] JSON lỗi: {path}: {error}")
+            print(f"[!] JSON error: {path}: {error}")
             return None
 
     def _ask(self, label: str, current: str) -> str:

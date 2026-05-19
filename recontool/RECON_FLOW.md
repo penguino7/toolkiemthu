@@ -165,7 +165,7 @@ Biểu đồ này mô tả các lớp lọc dữ liệu: lọc scope, lọc reso
 
 ```mermaid
 flowchart TD
-    A[config.example.json] --> B[ScopePolicy]
+    A[recon.config.example.json] --> B[ScopePolicy]
     B --> C[Lọc host và path được phép crawl]
 
     C --> D[StaticHtmlCrawler]

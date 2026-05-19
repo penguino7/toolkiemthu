@@ -81,6 +81,8 @@ class OpenAiCompatibleProvider(BaseProvider):
         self.model = str(provider.get("model", ""))
         self.timeout = int(provider.get("timeout_seconds", 60))
         self.temperature = float(provider.get("temperature", 0.1))
+        self.stream = bool(provider.get("stream", False))
+        self.last_usage = None
         api_key_env = str(provider.get("api_key_env", ""))
         self.api_key = os.environ.get(api_key_env, "") if api_key_env else ""
 
@@ -89,12 +91,14 @@ class OpenAiCompatibleProvider(BaseProvider):
             "model": self.model,
             "messages": [message.__dict__ for message in messages],
             "temperature": self.temperature,
+            "stream": self.stream,
         }
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
 
         data = self._post_json(f"{self.base_url}/chat/completions", payload, headers)
+        self.last_usage = data.get("usage")
         choices = data.get("choices", [])
         if not choices:
             return ""
@@ -108,7 +112,53 @@ class OpenAiCompatibleProvider(BaseProvider):
             method="POST",
         )
         with urlopen(request, timeout=self.timeout) as response:
-            return json.loads(response.read().decode("utf-8", errors="replace"))
+            raw_text = response.read().decode("utf-8", errors="replace")
+
+        if raw_text.lstrip().startswith("data:"):
+            return self._parse_sse_chat_completion(raw_text)
+        return json.loads(raw_text)
+
+    def _parse_sse_chat_completion(self, raw_text: str) -> dict:
+        content_parts = []
+        finish_reason = None
+        usage = None
+
+        for raw_line in raw_text.splitlines():
+            line = raw_line.strip()
+            if not line.startswith("data:"):
+                continue
+
+            event_text = line[len("data:") :].strip()
+            if not event_text or event_text == "[DONE]":
+                continue
+
+            event = json.loads(event_text)
+            usage = event.get("usage") or usage
+            choices = event.get("choices", [])
+            if not choices:
+                continue
+
+            choice = choices[0]
+            finish_reason = choice.get("finish_reason") or finish_reason
+            delta = choice.get("delta", {})
+            message = choice.get("message", {})
+            content = delta.get("content", message.get("content", ""))
+            if content:
+                content_parts.append(str(content))
+
+        return {
+            "choices": [
+                {
+                    "index": 0,
+                    "finish_reason": finish_reason,
+                    "message": {
+                        "role": "assistant",
+                        "content": "".join(content_parts),
+                    },
+                }
+            ],
+            "usage": usage,
+        }
 
 
 def build_provider(config: dict) -> BaseProvider:
@@ -120,4 +170,3 @@ def build_provider(config: dict) -> BaseProvider:
     if provider_name in {"openai_compatible", "openai-compatible", "chat_completions"}:
         return OpenAiCompatibleProvider(config)
     raise ValueError(f"Unknown AI provider: {provider_name}")
-

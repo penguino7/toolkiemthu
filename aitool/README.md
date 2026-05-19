@@ -54,7 +54,7 @@ File cấu hình mẫu nằm ở repo root:
 ai.config.example.json
 ```
 
-Provider mặc định là:
+Config mẫu hiện tại dùng provider `openai_compatible`. Nếu muốn test không cần API, đổi provider về:
 
 ```json
 "provider": {
@@ -98,13 +98,13 @@ python -B -m aitool fuzz-output/findings.json
 
 ## Dùng API Tương Thích OpenAI
 
-Nếu có một API hỗ trợ endpoint `/chat/completions`, cấu hình:
+Config mẫu hiện tại dùng router API tương thích `/chat/completions`:
 
 ```json
 "provider": {
   "name": "openai_compatible",
-  "base_url": "https://your-ai-api.example/v1",
-  "model": "your-model",
+  "base_url": "https://ravavct.abc-tunnel.us/v1",
+  "model": "gc/gemini-3-pro-preview",
   "api_key_env": "AI_API_KEY"
 }
 ```
@@ -112,7 +112,7 @@ Nếu có một API hỗ trợ endpoint `/chat/completions`, cấu hình:
 Set API key:
 
 ```bash
-export AI_API_KEY="your_api_key_here"
+export AI_API_KEY="your_router_api_key"
 ```
 
 Rồi chạy:
@@ -205,4 +205,3 @@ reporter.py
 - Chưa có fingerprint công nghệ để map CVE tự động.
 - `possible_cve` chỉ nên có khi finding chứa dữ liệu về sản phẩm/phiên bản cụ thể.
 - Kết luận cuối vẫn phải dựa trên evidence của fuzztool, không dựa mù vào AI.
-

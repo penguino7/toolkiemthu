@@ -194,25 +194,21 @@ Cấu hình AI nằm ở:
 ai.config.example.json
 ```
 
-Provider mặc định là `offline` để test tool không cần API. Khi muốn dùng Ollama local:
-
-```json
-"provider": {
-  "name": "ollama",
-  "base_url": "http://127.0.0.1:11434",
-  "model": "llama3.1:8b"
-}
-```
-
-Nếu dùng API tương thích `/chat/completions`, đổi provider:
+Config mẫu hiện đang dùng provider `openai_compatible` theo router API:
 
 ```json
 "provider": {
   "name": "openai_compatible",
-  "base_url": "https://your-ai-api.example/v1",
-  "model": "your-model",
+  "base_url": "https://ravavct.abc-tunnel.us/v1",
+  "model": "gc/gemini-3-pro-preview",
   "api_key_env": "AI_API_KEY"
 }
+```
+
+Set API key trước khi chạy:
+
+```bash
+export AI_API_KEY="your_router_api_key"
 ```
 
 ## Cấu Trúc Repo
@@ -221,7 +217,7 @@ Nếu dùng API tương thích `/chat/completions`, đổi provider:
 .
 ├── README.md
 ├── ai.config.example.json
-├── config.example.json
+├── recon.config.example.json
 ├── fuzz.config.example.json
 ├── requirements.txt
 ├── run_recon.sh
@@ -422,7 +418,7 @@ FuzzReporter       xuất findings
 File chính:
 
 ```text
-config.example.json
+recon.config.example.json
 ```
 
 Phần scope:

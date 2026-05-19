@@ -3,7 +3,7 @@ set -euo pipefail
 
 BASE_URL="http://127.0.0.1:12001"
 OUTPUT_DIR="recon-output"
-CONFIG_FILE="config.example.json"
+CONFIG_FILE="recon.config.example.json"
 DYNAMIC=0
 INSTALL_PLAYWRIGHT=0
 EXTRA_ARGS=()
