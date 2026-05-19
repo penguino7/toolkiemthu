@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from ...http_client import FuzzHttpClient
+from ...http_client import FuzzHttpClient, RequestBudgetExceeded
 from ...models import Finding, FuzzTarget
 from .boolean_based import BooleanBasedSqliScanner
 from .error_based import ErrorBasedSqliScanner
@@ -24,16 +24,40 @@ class SqliRunner:
         if options.get("error_based", True):
             scanner = ErrorBasedSqliScanner(self.client)
             for target in targets:
-                findings.extend(scanner.scan(target))
+                try:
+                    findings.extend(scanner.scan(target))
+                except RequestBudgetExceeded as error:
+                    print(f"[!] {error}")
+                    return findings
 
         if options.get("boolean_based", False):
             scanner = BooleanBasedSqliScanner(self.client)
             for target in targets:
-                findings.extend(scanner.scan(target))
+                try:
+                    findings.extend(scanner.scan(target))
+                except RequestBudgetExceeded as error:
+                    print(f"[!] {error}")
+                    return findings
 
         if options.get("time_based", False):
             scanner = TimeBasedSqliScanner(self.client, self.config)
-            for target in targets:
-                findings.extend(scanner.scan(target))
+            for target in self._prioritize_time_based_targets(targets):
+                try:
+                    findings.extend(scanner.scan(target))
+                except RequestBudgetExceeded as error:
+                    print(f"[!] {error}")
+                    return findings
 
         return findings
+
+    def _prioritize_time_based_targets(self, targets: List[FuzzTarget]) -> List[FuzzTarget]:
+        """Test param co kha nang SQLi time-based cao truoc de tiet kiem request."""
+
+        def priority(target: FuzzTarget) -> tuple[int, int, int, str]:
+            name = target.param_name.lower()
+            numeric_type = 0 if target.type_hint in {"int", "float"} else 1
+            id_like_name = 0 if name == "id" or name.endswith("_id") or name in {"filter_cat", "edit_id"} else 1
+            location_score = {"query": 0, "body": 1, "json": 2}.get(target.param_location, 3)
+            return numeric_type, id_like_name, location_score, target.key
+
+        return sorted(targets, key=priority)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import List
 
 from ...http_client import FuzzHttpClient
@@ -22,6 +23,9 @@ class TimeBasedSqliScanner:
         sqli_config = config.get("sqli", {})
         self.threshold = float(sqli_config.get("time_threshold_seconds", 2.5))
         self.sleep_seconds = int(sqli_config.get("time_sleep_seconds", 3))
+        self.max_payloads_per_target = int(sqli_config.get("time_max_payloads_per_target", 1))
+        self.max_baseline_seconds = float(sqli_config.get("time_max_baseline_seconds", self.threshold))
+        self.cooldown_after_timeout_seconds = float(sqli_config.get("time_cooldown_after_timeout_seconds", 2.0))
         self.payload_factory = SqliPayloadFactory(sleep_seconds=self.sleep_seconds)
 
     def scan(self, target: FuzzTarget) -> List[Finding]:
@@ -34,9 +38,16 @@ class TimeBasedSqliScanner:
             headers=baseline_headers,
         )
         if baseline_response.error:
+            print(f"[!] Skip time-based target because baseline failed: {target.key}")
+            return []
+        if baseline_response.elapsed_seconds > self.max_baseline_seconds:
+            print(
+                "[!] Skip time-based target because baseline is already slow: "
+                f"{target.key} baseline={baseline_response.elapsed_seconds:.3f}s"
+            )
             return []
 
-        payloads = self.payload_factory.time_payloads(target)
+        payloads = self.payload_factory.time_payloads(target)[: self.max_payloads_per_target]
         for payload in payloads:
             # Buoc 2: gui request co payload delay, vi du SLEEP(3).
             attack_method, attack_url, attack_body, attack_headers = self.mutator.mutate(target, payload)
@@ -54,6 +65,8 @@ class TimeBasedSqliScanner:
             )
             delayed_over_baseline = delta_seconds >= self.threshold
             if not timeout_after_stable_baseline and not delayed_over_baseline:
+                if attack_response.error:
+                    self._cooldown_after_timeout(target)
                 continue
 
             evidence = (
@@ -61,6 +74,8 @@ class TimeBasedSqliScanner:
                 if timeout_after_stable_baseline
                 else "response_delay_delta_over_threshold"
             )
+            if attack_response.error:
+                self._cooldown_after_timeout(target)
             return [
                 Finding(
                     vuln_type="sqli",
@@ -77,8 +92,18 @@ class TimeBasedSqliScanner:
                         "delta_seconds": round(delta_seconds, 4),
                         "threshold": self.threshold,
                         "sleep_seconds": self.sleep_seconds,
+                        "max_payloads_per_target": self.max_payloads_per_target,
                         "error": attack_response.error,
                     },
                 )
             ]
         return []
+
+    def _cooldown_after_timeout(self, target: FuzzTarget) -> None:
+        if self.cooldown_after_timeout_seconds <= 0:
+            return
+        print(
+            "[!] Time-based payload timed out; cooldown before next request: "
+            f"{self.cooldown_after_timeout_seconds:.1f}s target={target.key}"
+        )
+        time.sleep(self.cooldown_after_timeout_seconds)

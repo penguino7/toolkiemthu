@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from ...http_client import FuzzHttpClient
+from ...http_client import FuzzHttpClient, RequestBudgetExceeded
 from ...models import Finding, FuzzTarget
 from .dom import DomXssScanner
 from .reflected import ReflectedXssScanner
@@ -24,12 +24,20 @@ class XssRunner:
         if options.get("reflected", True):
             scanner = ReflectedXssScanner(self.client, self.config)
             for target in targets:
-                findings.extend(scanner.scan(target))
+                try:
+                    findings.extend(scanner.scan(target))
+                except RequestBudgetExceeded as error:
+                    print(f"[!] {error}")
+                    return findings
 
         if options.get("stored", False):
             scanner = StoredXssScanner(self.client, self.config)
             for target in targets:
-                findings.extend(scanner.scan(target))
+                try:
+                    findings.extend(scanner.scan(target))
+                except RequestBudgetExceeded as error:
+                    print(f"[!] {error}")
+                    return findings
 
         if options.get("dom", False):
             scanner = DomXssScanner(self.config)
