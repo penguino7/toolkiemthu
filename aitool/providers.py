@@ -4,6 +4,7 @@ import json
 import os
 from dataclasses import dataclass
 from typing import Dict, List
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -85,6 +86,12 @@ class OpenAiCompatibleProvider(BaseProvider):
         self.last_usage = None
         api_key_env = str(provider.get("api_key_env", ""))
         self.api_key = os.environ.get(api_key_env, "") if api_key_env else ""
+        self.auth_header = str(provider.get("auth_header", "Authorization"))
+        self.api_key_prefix = str(provider.get("api_key_prefix", "Bearer "))
+        self.extra_headers = {
+            str(key): str(value)
+            for key, value in dict(provider.get("headers", {})).items()
+        }
 
     def complete(self, messages: List[ChatMessage]) -> str:
         payload = {
@@ -93,9 +100,7 @@ class OpenAiCompatibleProvider(BaseProvider):
             "temperature": self.temperature,
             "stream": self.stream,
         }
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        headers = self._build_headers()
 
         data = self._post_json(f"{self.base_url}/chat/completions", payload, headers)
         self.last_usage = data.get("usage")
@@ -104,6 +109,17 @@ class OpenAiCompatibleProvider(BaseProvider):
             return ""
         return str(choices[0].get("message", {}).get("content", ""))
 
+    def _build_headers(self) -> Dict[str, str]:
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "ToolKiemThu/1.0",
+        }
+        headers.update(self.extra_headers)
+        if self.api_key and self.auth_header:
+            headers[self.auth_header] = f"{self.api_key_prefix}{self.api_key}"
+        return headers
+
     def _post_json(self, url: str, payload: dict, headers: Dict[str, str]) -> dict:
         request = Request(
             url,
@@ -111,8 +127,17 @@ class OpenAiCompatibleProvider(BaseProvider):
             headers=headers,
             method="POST",
         )
-        with urlopen(request, timeout=self.timeout) as response:
-            raw_text = response.read().decode("utf-8", errors="replace")
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                raw_text = response.read().decode("utf-8", errors="replace")
+        except HTTPError as error:
+            error_body = error.read().decode("utf-8", errors="replace").strip()
+            if len(error_body) > 500:
+                error_body = error_body[:497] + "..."
+            detail = f"HTTP Error {error.code}: {error.reason}"
+            if error_body:
+                detail = f"{detail} - {error_body}"
+            raise RuntimeError(detail) from error
 
         if raw_text.lstrip().startswith("data:"):
             return self._parse_sse_chat_completion(raw_text)

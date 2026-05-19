@@ -5,6 +5,12 @@
     "model": "gh/gpt-5-mini",
     "api_key_env": "AI_API_KEY",
     "env_file": ".env",
+    "auth_header": "Authorization",
+    "api_key_prefix": "Bearer ",
+    "headers": {
+      "Accept": "application/json",
+      "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    },
     "timeout_seconds": 60,
     "temperature": 0.1,
     "stream": false

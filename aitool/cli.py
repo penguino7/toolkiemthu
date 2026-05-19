@@ -96,16 +96,38 @@ class AiApplication:
         preview = self._safe_terminal_text(preview)
 
         print(f"[+] Provider test OK in {elapsed:.2f}s")
-        print(f"[+] Response: {preview or '<empty>'}")
+        print(f"[+] Content: {preview or '<empty>'}")
 
         usage = getattr(provider, "last_usage", None)
         if usage:
-            print(f"[+] Usage: {usage}")
+            print(f"[+] Tokens : {self._format_token_usage(usage)}")
         return 0
 
     def _safe_terminal_text(self, value: str) -> str:
         encoding = sys.stdout.encoding or "utf-8"
         return value.encode(encoding, errors="replace").decode(encoding)
+
+    def _format_token_usage(self, usage: dict) -> str:
+        prompt_tokens = usage.get("prompt_tokens")
+        completion_tokens = usage.get("completion_tokens")
+        total_tokens = usage.get("total_tokens")
+        reasoning_tokens = usage.get("reasoning_tokens")
+
+        if reasoning_tokens is None:
+            completion_details = usage.get("completion_tokens_details", {})
+            if isinstance(completion_details, dict):
+                reasoning_tokens = completion_details.get("reasoning_tokens")
+
+        parts = []
+        if prompt_tokens is not None:
+            parts.append(f"prompt={prompt_tokens}")
+        if completion_tokens is not None:
+            parts.append(f"completion={completion_tokens}")
+        if total_tokens is not None:
+            parts.append(f"total={total_tokens}")
+        if reasoning_tokens is not None:
+            parts.append(f"reasoning={reasoning_tokens}")
+        return " ".join(parts) or "unavailable"
 
 
 def main(argv=None) -> int:
