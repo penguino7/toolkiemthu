@@ -20,6 +20,8 @@ DB_ERROR_PATTERNS = [
     "sqlite",
 ]
 
+DB_ERROR_EXCERPT_CHARS = 500
+
 CACHE_BUSTER_PARAMS = {
     "_",
     "_t",
@@ -174,8 +176,9 @@ class ReconNormalizer:
 
         # Bước 4: gắn evidence quan sát được từ response hiện tại.
         self.mark_reflections(record, response_text, response_content_type)
-        if self.detect_db_error(response_text):
-            record.evidence["db_error_pattern"] = True
+        db_error = self.db_error_evidence(response_text)
+        if db_error:
+            record.evidence.update(db_error)
         return record
 
     def mark_reflections(self, record: EndpointRecord, response_text: str | None, response_content_type: str = "") -> None:
@@ -199,10 +202,32 @@ class ReconNormalizer:
             record.evidence["reflection_contexts"] = sorted(contexts)
 
     def detect_db_error(self, response_text: str | None) -> bool:
+        return bool(self.db_error_evidence(response_text))
+
+    def db_error_evidence(self, response_text: str | None) -> Dict[str, Any]:
+        """Trích đoạn lỗi database để AI đọc được bằng chứng thật.
+
+        Recon vẫn không kết luận lỗ hổng. Hàm này chỉ lưu metadata quan sát
+        được từ response thay vì chỉ lưu cờ `db_error_pattern=true`.
+        """
         if not response_text:
-            return False
-        lowered = response_text.lower()
-        return any(pattern in lowered for pattern in DB_ERROR_PATTERNS)
+            return {}
+
+        cleaned_text = self._compact_text(response_text)
+        lowered = cleaned_text.lower()
+        matched_patterns = [pattern for pattern in DB_ERROR_PATTERNS if pattern in lowered]
+        if not matched_patterns:
+            return {}
+
+        first_match_index = min(lowered.find(pattern) for pattern in matched_patterns)
+        excerpt_start = max(0, first_match_index - 120)
+        excerpt_end = min(len(cleaned_text), excerpt_start + DB_ERROR_EXCERPT_CHARS)
+
+        return {
+            "db_error_pattern": True,
+            "db_error_patterns": matched_patterns,
+            "db_error_excerpt": cleaned_text[excerpt_start:excerpt_end],
+        }
 
     def reflection_context(self, response_text: str, value: str, response_content_type: str = "") -> str:
         if "json" in (response_content_type or "").lower():
@@ -264,6 +289,10 @@ class ReconNormalizer:
         if len(cleaned) > 1:
             cleaned = cleaned.rstrip("/")
         return cleaned
+
+    def _compact_text(self, text: str) -> str:
+        no_tags = re.sub(r"<[^>]+>", " ", text)
+        return re.sub(r"\s+", " ", no_tags).strip()
 
     def _normalize_headers(self, headers: Dict[str, str] | None) -> Dict[str, str]:
         if not headers:

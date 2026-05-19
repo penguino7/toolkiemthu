@@ -31,8 +31,9 @@ class ErrorBasedSqliScanner:
             # Buoc 2: gui request va doc response.
             response = self.client.send(attack_method, attack_url, body=attack_body, headers=attack_headers)
 
-            # Buoc 3: neu response co loi database thi ghi finding.
-            if self.detector.has_db_error(response.text):
+            # Buoc 3: neu response co loi database thi ghi finding kem doan loi de AI doc.
+            db_error = self.detector.db_error_evidence(response.text)
+            if db_error:
                 return [
                     Finding(
                         vuln_type="sqli",
@@ -40,10 +41,13 @@ class ErrorBasedSqliScanner:
                         severity="high",
                         target=target,
                         payload=payload,
-                        evidence="database_error_pattern",
+                        evidence="database_error_response",
                         request_url=response.url,
                         status=response.status,
                         details={
+                            "matched_patterns": db_error.get("matched_patterns", []),
+                            "response_excerpt": db_error.get("response_excerpt", ""),
+                            "response_content_type": response.headers.get("content-type", ""),
                             "elapsed_seconds": round(response.elapsed_seconds, 4),
                             "error": response.error,
                         },
