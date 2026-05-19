@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 from typing import Any, List
-from urllib.parse import parse_qsl, urlparse
+from urllib.parse import urlparse
 
 
 PENDING_FUZZ_PAYLOAD: dict[str, str] = {}
@@ -121,20 +121,17 @@ def compact_target(value: Any) -> str:
 
 
 def summarize_url(value: Any, limit: int = 150) -> str:
-    parsed = urlparse(str(value))
+    text = str(value)
+    parsed = urlparse(text)
     if parsed.scheme and parsed.netloc:
         base = f"{parsed.scheme}://{parsed.netloc}{parsed.path or '/'}"
     else:
-        base = parsed.path or str(value)
+        base = parsed.path or text
 
     if not parsed.query:
         return short_text(base, limit)
 
-    pairs = []
-    for name, raw_value in parse_qsl(parsed.query, keep_blank_values=True):
-        pairs.append(f"{name}={short_text(raw_value, 34)}")
-
-    return short_text(f"{base}?{'&'.join(pairs)}", limit)
+    return short_text(f"{base}?{parsed.query}", limit)
 
 
 def format_size(value: Any) -> str:

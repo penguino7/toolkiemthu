@@ -38,7 +38,7 @@ class TimeBasedSqliScanner:
             headers=baseline_headers,
         )
         if baseline_response.error:
-            print(f"[!] Skip time-based target because baseline failed: {target.key}")
+            print(f"[!] Skip time-based target because baseline failed: {target.key} error={baseline_response.error}")
             return []
         if baseline_response.elapsed_seconds > self.max_baseline_seconds:
             print(
@@ -61,11 +61,12 @@ class TimeBasedSqliScanner:
             # Buoc 3: so sanh thoi gian payload voi baseline.
             delta_seconds = attack_response.elapsed_seconds - baseline_response.elapsed_seconds
             timeout_after_stable_baseline = bool(
-                attack_response.error and attack_response.elapsed_seconds >= self.threshold
+                self._is_timeout_error(attack_response.error)
+                and attack_response.elapsed_seconds >= self.threshold
             )
             delayed_over_baseline = delta_seconds >= self.threshold
             if not timeout_after_stable_baseline and not delayed_over_baseline:
-                if attack_response.error:
+                if self._is_timeout_error(attack_response.error):
                     self._cooldown_after_timeout(target)
                 continue
 
@@ -74,7 +75,7 @@ class TimeBasedSqliScanner:
                 if timeout_after_stable_baseline
                 else "response_delay_delta_over_threshold"
             )
-            if attack_response.error:
+            if self._is_timeout_error(attack_response.error):
                 self._cooldown_after_timeout(target)
             return [
                 Finding(
@@ -98,6 +99,9 @@ class TimeBasedSqliScanner:
                 )
             ]
         return []
+
+    def _is_timeout_error(self, error: str | None) -> bool:
+        return bool(error and error.startswith("timeout:"))
 
     def _cooldown_after_timeout(self, target: FuzzTarget) -> None:
         if self.cooldown_after_timeout_seconds <= 0:

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import socket
 import time
 from dataclasses import dataclass, field
 from http.cookiejar import CookieJar
+from http.client import RemoteDisconnected
 from socket import timeout as SocketTimeout
 from typing import Dict
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qsl, quote, urlparse, urlunparse
 from urllib.request import HTTPCookieProcessor, ProxyHandler, Request, build_opener
 
 from .models import HttpExchange
@@ -61,6 +64,7 @@ class FuzzHttpClient:
 
         # Bước 3: gửi request. HTTP 4xx/5xx vẫn là response hợp lệ để detector đọc.
         started = time.perf_counter()
+        url = self._safe_url(url)
         request = Request(url, data=data, headers=final_headers, method=method.upper())
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
@@ -77,7 +81,21 @@ class FuzzHttpClient:
         except (TimeoutError, SocketTimeout) as error:
             return self._error_exchange(method, url, started, f"timeout: {error}")
         except URLError as error:
-            return self._error_exchange(method, url, started, f"url_error: {error.reason}")
+            return self._connection_error_exchange(method, url, started, error)
+        except (RemoteDisconnected, socket.error, ConnectionResetError) as error:
+            return self._connection_error_exchange(method, url, started, error)
+
+    @staticmethod
+    def _safe_url(url: str) -> str:
+        parsed_url = urlparse(url)
+        if not parsed_url.query:
+            return url
+
+        safe_query = "&".join(
+            f"{quote(name, safe='')}={quote(value, safe='')}"
+            for name, value in parse_qsl(parsed_url.query, keep_blank_values=True)
+        )
+        return urlunparse(parsed_url._replace(query=safe_query))
 
     def _exchange(self, method: str, url: str, status: int, headers, raw: bytes, started: float) -> HttpExchange:
         header_dict = {key.lower(): value for key, value in headers}
@@ -105,6 +123,12 @@ class FuzzHttpClient:
             elapsed_seconds=time.perf_counter() - started,
             error=error,
         )
+
+    def _connection_error_exchange(self, method: str, url: str, started: float, error: Exception) -> HttpExchange:
+        reason = getattr(error, "reason", error)
+        if isinstance(reason, (TimeoutError, SocketTimeout, socket.timeout)):
+            return self._error_exchange(method, url, started, f"timeout: {reason}")
+        return self._error_exchange(method, url, started, f"url_error: {reason}")
 
     def _decode(self, raw: bytes, content_type: str) -> str:
         lowered = (content_type or "").lower()
