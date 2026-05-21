@@ -63,9 +63,11 @@ class ConfigLoader:
     """
 
     def __init__(self, defaults: Dict[str, Any] | None = None) -> None:
+        #defaults và DEFAULTS_CONFIG cùng trỏ vào cùng 1 vùng nhớ , nếu không dùng deecopy thì sẽ dễ dẫn đến thao tác thay đổi dữ liệu ở vùng nhớ đó
         self.defaults = deepcopy(defaults or DEFAULT_CONFIG)
 
     def load(self, path: str | None) -> Dict[str, Any]:
+        #Mọi sự thay đổi sẽ thay đổi trên defaults chứ khong thay dổi trên DEFAULTS_CONFIG
         config = deepcopy(self.defaults)
         if not path:
             return config

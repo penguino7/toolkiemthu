@@ -62,7 +62,7 @@ bash run_fuzz.sh recon-output/inventory.json --sqli
 Payload SQLi được đọc từ:
 
 ```text
-fuzztool/plugins/sqli/payloads.txt
+fuzztool/payloads/sqli.txt
 ```
 
 File này chia payload theo nhóm `error`, `boolean` và `union`. Có thể thêm payload mới bằng template `{sample}`; riêng union-based dùng `{columns}` do scanner tự sinh.
@@ -105,17 +105,12 @@ fuzztool/
 ├── http_client.py
 ├── mutator.py
 ├── reporter.py
-└── plugins/
-    ├── xss/
-    │   ├── runner.py
-    │   ├── reflected.py
-    │   ├── stored.py
-    │   ├── dom.py
-    │   └── detector.py
-    └── sqli/
-        ├── runner.py
-        ├── error_based.py
-        ├── boolean_based.py
-        ├── union_based.py
-        └── detector.py
+├── xss_scanner.py
+├── sqli_scanner.py
+└── payloads/
+    ├── xss.txt
+    └── sqli.txt
 ```
+
+`xss_scanner.py` vẫn chia hàm `scan_reflected_xss()`, `scan_stored_xss()`, `scan_dom_xss()`.
+`sqli_scanner.py` vẫn chia hàm `scan_error_based_sqli()`, `scan_boolean_based_sqli()`, `scan_union_based_sqli()`.

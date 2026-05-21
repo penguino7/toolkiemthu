@@ -8,9 +8,9 @@ from .config import FuzzConfigLoader
 from .http_client import FuzzHttpClient, RequestBudgetExceeded
 from .inventory_loader import InventoryLoader
 from .models import Finding, FuzzTarget
-from .plugins.sqli.runner import SqliRunner
-from .plugins.xss.runner import XssRunner
 from .reporter import FuzzReporter
+from .sqli_scanner import SqliScanner
+from .xss_scanner import XssScanner
 
 
 XSS_TARGET_TESTS = {
@@ -182,10 +182,10 @@ class FuzzApplication:
         try:
             if config.get("xss", {}).get("enabled", False):
                 xss_targets = [target for target in targets if self._is_xss_target(target)]
-                findings.extend(XssRunner(client, config).run(xss_targets))
+                findings.extend(XssScanner(client, config).run(xss_targets))
             if config.get("sqli", {}).get("enabled", False):
                 sqli_targets = [target for target in targets if self._is_sqli_target(target)]
-                findings.extend(SqliRunner(client, config).run(sqli_targets))
+                findings.extend(SqliScanner(client, config).run(sqli_targets))
         except RequestBudgetExceeded as error:
             print(f"[!] {error}")
         return findings

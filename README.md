@@ -154,7 +154,7 @@ Chạy SQLi:
 bash run_fuzz.sh recon-output/inventory.json --sqli
 ```
 
-Payload SQLi nằm trong `fuzztool/plugins/sqli/payloads.txt`, chia theo nhóm error-based, boolean-based và union-based. Scanner sẽ tự thay `{sample}` bằng giá trị mẫu của param; riêng union-based sẽ tự sinh `{columns}` để thử số cột UNION SELECT.
+Payload SQLi nằm trong `fuzztool/payloads/sqli.txt`, chia theo nhóm error-based, boolean-based và union-based. Scanner sẽ tự thay `{sample}` bằng giá trị mẫu của param; riêng union-based sẽ tự sinh `{columns}` để thử số cột UNION SELECT.
 
 Chạy cả XSS và SQLi:
 
@@ -276,19 +276,11 @@ export AI_API_KEY="your_router_api_key"
     ├── models.py
     ├── mutator.py
     ├── reporter.py
-    └── plugins/
-        ├── xss/
-        │   ├── runner.py
-        │   ├── reflected.py
-        │   ├── stored.py
-        │   ├── dom.py
-        │   └── detector.py
-        └── sqli/
-            ├── runner.py
-            ├── error_based.py
-            ├── boolean_based.py
-            ├── union_based.py
-            └── detector.py
+    ├── xss_scanner.py
+    ├── sqli_scanner.py
+    └── payloads/
+        ├── xss.txt
+        └── sqli.txt
 ```
 
 ## ReconTool
@@ -337,20 +329,16 @@ run_fuzz.sh
 fuzztool/cli.py
 fuzztool/inventory_loader.py
 fuzztool/mutator.py
-fuzztool/plugins/xss/runner.py
-fuzztool/plugins/sqli/runner.py
+fuzztool/xss_scanner.py
+fuzztool/sqli_scanner.py
 fuzztool/reporter.py
 ```
 
-Khi đọc fuzz scanner, mở `runner.py` trước để biết scanner nào được gọi, sau đó mở từng file cụ thể:
+Khi đọc fuzz scanner, mở `xss_scanner.py` và `sqli_scanner.py`. Mỗi file vẫn chia hàm riêng cho từng loại lỗ hổng:
 
 ```text
-fuzztool/plugins/xss/reflected.py      reflected XSS
-fuzztool/plugins/xss/stored.py         stored XSS
-fuzztool/plugins/xss/dom.py            DOM XSS
-fuzztool/plugins/sqli/error_based.py   SQLi error-based
-fuzztool/plugins/sqli/boolean_based.py SQLi boolean-based
-fuzztool/plugins/sqli/union_based.py   SQLi union-based
+fuzztool/xss_scanner.py   scan_reflected_xss(), scan_stored_xss(), scan_dom_xss()
+fuzztool/sqli_scanner.py  scan_error_based_sqli(), scan_boolean_based_sqli(), scan_union_based_sqli()
 ```
 
 Các hàm `scan()` trong những file này được viết theo kiểu tuyến tính:
@@ -390,9 +378,9 @@ Các file có thể đọc sau:
 http_client.py          chi tiết gửi HTTP request
 scope.py                luật giới hạn domain/path
 auth.py                 login/auth profile
-payloads.txt            danh sách payload
-detector.py             luật nhận diện evidence
-browser_verifier.py     xác minh XSS bằng Playwright
+payloads/               danh sách payload XSS/SQLi
+xss_scanner.py          scanner XSS và xác minh bằng Playwright
+sqli_scanner.py         scanner SQLi và luật nhận diện evidence
 ```
 
 ## FuzzTool
@@ -416,8 +404,8 @@ InventoryLoader    đọc inventory và tạo FuzzTarget
 FuzzTarget         một param cụ thể sẽ được fuzz
 RequestMutator     thay sample value bằng payload kiểm thử
 FuzzHttpClient     gửi request và đo response
-XssRunner          chạy nhóm XSS
-SqliRunner         chạy nhóm SQLi
+XssScanner         chạy nhóm XSS
+SqliScanner        chạy nhóm SQLi
 FuzzReporter       xuất findings
 ```
 
