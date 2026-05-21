@@ -39,7 +39,7 @@ class HttpExchange:
     status: int  # HTTP status code. Nếu lỗi network thì thường là 0.
     headers: Dict[str, str]  # Response headers.
     text: str  # Response body dạng text nếu đọc được.
-    elapsed_seconds: float  # Thời gian request, dùng cho time-based SQLi.
+    elapsed_seconds: float  # Thoi gian request, dung de so sanh response hoac debug request cham.
     error: str | None = None  # Lỗi network/timeout nếu có.
 
 

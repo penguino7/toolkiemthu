@@ -6,7 +6,7 @@ from ...http_client import FuzzHttpClient, RequestBudgetExceeded
 from ...models import Finding, FuzzTarget
 from .boolean_based import BooleanBasedSqliScanner
 from .error_based import ErrorBasedSqliScanner
-from .time_based import TimeBasedSqliScanner
+from .union_based import UnionBasedSqliScanner
 
 
 class SqliRunner:
@@ -39,9 +39,9 @@ class SqliRunner:
                     print(f"[!] {error}")
                     return findings
 
-        if options.get("time_based", False):
-            scanner = TimeBasedSqliScanner(self.client, self.config)
-            for target in self._prioritize_time_based_targets(targets):
+        if options.get("union_based", False):
+            scanner = UnionBasedSqliScanner(self.client, self.config)
+            for target in self._prioritize_union_based_targets(targets):
                 try:
                     findings.extend(scanner.scan(target))
                 except RequestBudgetExceeded as error:
@@ -50,8 +50,8 @@ class SqliRunner:
 
         return findings
 
-    def _prioritize_time_based_targets(self, targets: List[FuzzTarget]) -> List[FuzzTarget]:
-        """Test param co kha nang SQLi time-based cao truoc de tiet kiem request."""
+    def _prioritize_union_based_targets(self, targets: List[FuzzTarget]) -> List[FuzzTarget]:
+        """Test param co kha nang SQLi union-based cao truoc de tiet kiem request."""
 
         def priority(target: FuzzTarget) -> tuple[int, int, int, str]:
             name = target.param_name.lower()

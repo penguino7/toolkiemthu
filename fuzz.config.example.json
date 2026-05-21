@@ -48,12 +48,9 @@
     "enabled": false,
     "error_based": true,
     "boolean_based": false,
-    "time_based": false,
-    "time_threshold_seconds": 2.5,
-    "time_sleep_seconds": 3,
-    "time_max_payloads_per_target": 1,
-    "time_max_baseline_seconds": 2.5,
-    "time_cooldown_after_timeout_seconds": 2
+    "union_based": false,
+    "union_max_columns": 12,
+    "union_marker_prefix": "FUZZUNION"
   },
   "output_dir": "fuzz-output"
 }

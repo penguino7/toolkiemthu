@@ -34,10 +34,10 @@ class FuzzCliParser:
         parser.add_argument("--xss-reflected", action="store_true", help="Bat rieng reflected XSS")
         parser.add_argument("--xss-stored", action="store_true", help="Bat rieng stored XSS")
         parser.add_argument("--xss-dom", action="store_true", help="Bat rieng DOM XSS")
-        parser.add_argument("--sqli", action="store_true", help="Bat tat ca SQLi: error, boolean, time")
+        parser.add_argument("--sqli", action="store_true", help="Bat tat ca SQLi: error, boolean, union")
         parser.add_argument("--sqli-error", action="store_true", help="Bat rieng SQLi error-based")
         parser.add_argument("--sqli-boolean", action="store_true", help="Bat rieng SQLi boolean-based")
-        parser.add_argument("--sqli-time", action="store_true", help="Bat rieng SQLi time-based")
+        parser.add_argument("--sqli-union", action="store_true", help="Bat rieng SQLi union-based")
         parser.add_argument("--include-post", action="store_true", help="Cho phep fuzz body/json POST")
         parser.add_argument("--max-requests", type=int, help="Gioi han so request fuzz")
         parser.add_argument("--dry-run", action="store_true", help="Chi liet ke target, khong gui request")
@@ -115,15 +115,15 @@ class FuzzApplication:
                 config.setdefault("safety", {})["include_post"] = True
 
     def _apply_sqli_overrides(self, config: dict, args: argparse.Namespace) -> None:
-        selected_sqli_type = args.sqli_error or args.sqli_boolean or args.sqli_time
+        selected_sqli_type = args.sqli_error or args.sqli_boolean or args.sqli_union
         if args.sqli or selected_sqli_type:
             config.setdefault("sqli", {})["enabled"] = True
 
         if args.sqli:
-            # Trong lab, --sqli nghia la fuzz du error-based, boolean va time.
+            # Trong lab, --sqli nghia la fuzz du error-based, boolean va union.
             config.setdefault("sqli", {})["error_based"] = True
             config.setdefault("sqli", {})["boolean_based"] = True
-            config.setdefault("sqli", {})["time_based"] = True
+            config.setdefault("sqli", {})["union_based"] = True
             config.setdefault("safety", {})["include_post"] = True
             if args.max_requests is None:
                 current_limit = int(config.setdefault("safety", {}).get("max_requests", 800))
@@ -133,7 +133,7 @@ class FuzzApplication:
         if selected_sqli_type:
             config.setdefault("sqli", {})["error_based"] = bool(args.sqli_error)
             config.setdefault("sqli", {})["boolean_based"] = bool(args.sqli_boolean)
-            config.setdefault("sqli", {})["time_based"] = bool(args.sqli_time)
+            config.setdefault("sqli", {})["union_based"] = bool(args.sqli_union)
             config.setdefault("safety", {})["include_post"] = True
 
     def _selected_kinds(self, config: dict) -> set[str]:
@@ -218,7 +218,7 @@ class FuzzApplication:
                 [
                     ("error_based", "error-based"),
                     ("boolean_based", "boolean-based"),
-                    ("time_based", "time-based"),
+                    ("union_based", "union-based"),
                 ],
             )
             print(f"[*] SQLi scanners: {', '.join(active) if active else 'none'}")

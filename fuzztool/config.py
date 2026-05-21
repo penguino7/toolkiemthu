@@ -48,9 +48,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "enabled": False,
         "error_based": True,
         "boolean_based": False,
-        "time_based": False,
-        "time_threshold_seconds": 2.5,
-        "time_sleep_seconds": 3,
+        "union_based": False,
+        "union_max_columns": 12,
+        "union_marker_prefix": "FUZZUNION",
     },
     "output_dir": "fuzz-output",
 }

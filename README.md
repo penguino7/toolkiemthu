@@ -154,7 +154,7 @@ Chạy SQLi:
 bash run_fuzz.sh recon-output/inventory.json --sqli
 ```
 
-Payload SQLi nằm trong `fuzztool/plugins/sqli/payloads.txt`, chia theo nhóm error-based, boolean-based và time-based. Scanner sẽ tự thay `{sample}` bằng giá trị mẫu của param và `{sleep}` bằng số giây delay trong config.
+Payload SQLi nằm trong `fuzztool/plugins/sqli/payloads.txt`, chia theo nhóm error-based, boolean-based và union-based. Scanner sẽ tự thay `{sample}` bằng giá trị mẫu của param; riêng union-based sẽ tự sinh `{columns}` để thử số cột UNION SELECT.
 
 Chạy cả XSS và SQLi:
 
@@ -162,7 +162,7 @@ Chạy cả XSS và SQLi:
 bash run_fuzz.sh recon-output/inventory.json --xss --sqli
 ```
 
-Đây là lệnh fuzz đầy đủ cho lab: reflected XSS, DOM XSS, Stored XSS, SQLi error-based, SQLi boolean-based và SQLi time-based. `--include-post` vẫn còn được hỗ trợ nhưng không cần thêm khi đã dùng `--xss` hoặc `--sqli`.
+Đây là lệnh fuzz đầy đủ cho lab: reflected XSS, DOM XSS, Stored XSS, SQLi error-based, SQLi boolean-based và SQLi union-based. `--include-post` vẫn còn được hỗ trợ nhưng không cần thêm khi đã dùng `--xss` hoặc `--sqli`.
 
 Giới hạn số request:
 
@@ -287,7 +287,7 @@ export AI_API_KEY="your_router_api_key"
             ├── runner.py
             ├── error_based.py
             ├── boolean_based.py
-            ├── time_based.py
+            ├── union_based.py
             └── detector.py
 ```
 
@@ -350,7 +350,7 @@ fuzztool/plugins/xss/stored.py         stored XSS
 fuzztool/plugins/xss/dom.py            DOM XSS
 fuzztool/plugins/sqli/error_based.py   SQLi error-based
 fuzztool/plugins/sqli/boolean_based.py SQLi boolean-based
-fuzztool/plugins/sqli/time_based.py    SQLi time-based
+fuzztool/plugins/sqli/union_based.py   SQLi union-based
 ```
 
 Các hàm `scan()` trong những file này được viết theo kiểu tuyến tính:
@@ -502,7 +502,8 @@ Phần SQLi:
   "enabled": false,
   "error_based": true,
   "boolean_based": false,
-  "time_based": false
+  "union_based": false,
+  "union_max_columns": 12
 }
 ```
 
@@ -560,8 +561,8 @@ Recontool:
 Fuzztool:
 
 - XSS finding là kết quả đã được browser xác nhận bằng dialog có marker, không còn là candidate phản xạ đơn thuần.
-- SQLi finding vẫn nên được đọc cùng evidence vì boolean/time có thể nhiễu nếu target phản hồi không ổn định.
+- SQLi finding vẫn nên được đọc cùng evidence vì boolean-based có thể nhiễu nếu target phản hồi không ổn định, còn union-based chỉ ghi khi marker xuất hiện trong response.
 - Stored XSS cần cấu hình `stored_check_paths`.
 - DOM XSS cần Playwright.
-- Boolean/time SQLi mặc định tắt vì dễ nhiễu hoặc chậm.
+- Boolean/union SQLi mặc định tắt trong config, nhưng sẽ được bật khi chạy `--sqli`.
 - POST/body/json mặc định tắt để tránh thay đổi dữ liệu ngoài ý muốn.

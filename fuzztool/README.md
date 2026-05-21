@@ -23,7 +23,7 @@ Mặc định fuzztool:
 - XSS dùng payload proof-of-execution như `<script>alert("FUZZXSS_xxxxxxxx")</script>`.
 - XSS chỉ được ghi vào `findings` khi Playwright bắt được dialog chứa marker, không ghi các payload chỉ phản xạ/render nhưng chưa thực thi.
 - `--xss` chạy reflected XSS, DOM XSS và Stored XSS.
-- `--sqli` chạy error-based, boolean-based và time-based SQLi.
+- `--sqli` chạy error-based, boolean-based và union-based SQLi.
 
 ## Lệnh Mẫu
 
@@ -53,7 +53,7 @@ Payload XSS mặc định là payload thật có marker bên trong:
 <img src=x onerror=alert("FUZZXSS_xxxxxxxx")>
 ```
 
-Chạy đủ nhóm SQLi, gồm error-based, boolean-based và time-based:
+Chạy đủ nhóm SQLi, gồm error-based, boolean-based và union-based:
 
 ```bash
 bash run_fuzz.sh recon-output/inventory.json --sqli
@@ -65,7 +65,7 @@ Payload SQLi được đọc từ:
 fuzztool/plugins/sqli/payloads.txt
 ```
 
-File này chia payload theo nhóm `error`, `boolean` và `time`. Có thể thêm payload mới bằng template `{sample}` và `{sleep}` mà không cần sửa code scanner.
+File này chia payload theo nhóm `error`, `boolean` và `union`. Có thể thêm payload mới bằng template `{sample}`; riêng union-based dùng `{columns}` do scanner tự sinh.
 
 Chạy đầy đủ cả XSS và SQLi:
 
@@ -79,10 +79,10 @@ Chạy riêng DOM XSS:
 bash run_fuzz.sh recon-output/inventory.json --xss-dom
 ```
 
-Chạy riêng SQLi boolean/time:
+Chạy riêng SQLi union-based:
 
 ```bash
-bash run_fuzz.sh recon-output/inventory.json --sqli --sqli-boolean --sqli-time
+bash run_fuzz.sh recon-output/inventory.json --sqli-union
 ```
 
 ## Output
@@ -116,6 +116,6 @@ fuzztool/
         ├── runner.py
         ├── error_based.py
         ├── boolean_based.py
-        ├── time_based.py
+        ├── union_based.py
         └── detector.py
 ```

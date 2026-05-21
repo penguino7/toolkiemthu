@@ -9,9 +9,8 @@ from ...models import FuzzTarget
 class SqliPayloadFactory:
     """Doc payload SQLi tu payloads.txt va render theo target."""
 
-    def __init__(self, payload_file: str | Path | None = None, sleep_seconds: int = 3) -> None:
+    def __init__(self, payload_file: str | Path | None = None) -> None:
         self.payload_file = Path(payload_file) if payload_file else Path(__file__).with_name("payloads.txt")
-        self.sleep_seconds = sleep_seconds
         self.sections = self._load_sections()
 
     def error_payloads(self, target: FuzzTarget) -> List[str]:
@@ -23,17 +22,18 @@ class SqliPayloadFactory:
         false_payloads = self._render_section(f"boolean.{kind}.false", target)
         return list(zip(true_payloads, false_payloads))
 
-    def time_payloads(self, target: FuzzTarget) -> List[str]:
-        return self._render_section(f"time.{self._kind(target)}", target)
+    def union_payloads(self, target: FuzzTarget, columns_sql: str) -> List[str]:
+        return self._render_section(f"union.{self._kind(target)}", target, {"columns": columns_sql})
 
     def _kind(self, target: FuzzTarget) -> str:
         return "numeric" if target.type_hint in {"int", "float"} else "string"
 
-    def _render_section(self, section: str, target: FuzzTarget) -> List[str]:
+    def _render_section(self, section: str, target: FuzzTarget, extra_values: Dict[str, str] | None = None) -> List[str]:
         rendered = []
         for template in self.sections.get(section, []):
             payload = template.replace("{sample}", target.sample_value)
-            payload = payload.replace("{sleep}", str(self.sleep_seconds))
+            for name, value in (extra_values or {}).items():
+                payload = payload.replace("{" + name + "}", value)
             rendered.append(payload)
         return rendered
 
