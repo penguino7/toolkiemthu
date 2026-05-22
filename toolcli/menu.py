@@ -11,7 +11,6 @@ class LauncherState:
     """User-editable values stored while the menu is running."""
 
     base_url: str = "http://127.0.0.1:12001"
-    recon_output: str = "recon-output"
     fuzz_output: str = "fuzz-output"
     inventory_path: str = "recon-output/inventory.json"
     findings_path: str = "fuzz-output/findings.json"
@@ -68,7 +67,6 @@ class ToolCliMenu:
         print("ToolKiemThu CLI Menu")
         print("=" * 72)
         print(f"Base URL      : {self.state.base_url}")
-        print(f"Recon output  : {self.state.recon_output}")
         print(f"Inventory     : {self.state.inventory_path}")
         print(f"Fuzz output   : {self.state.fuzz_output}")
         print(f"Findings      : {self.state.findings_path}")
@@ -96,15 +94,12 @@ class ToolCliMenu:
             "recon.config.example.json",
             "--base-url",
             self.state.base_url,
-            "--out",
-            self.state.recon_output,
-            "--dynamic",
         ]
 
         module, final_args = self._module_and_args("recon", args)
         self.runner.run_python_module("recon", module, final_args)
 
-        self.state.inventory_path = f"{self.state.recon_output}/inventory.json"
+        self.state.inventory_path = "recon-output/inventory.json"
 
     def run_fuzz(self, flags: List[str], title: str) -> None:
         args = [self.state.inventory_path, "--base-url", self.state.base_url, *flags, "--out", self.state.fuzz_output]
@@ -158,8 +153,6 @@ class ToolCliMenu:
         print("")
         print("Cài đặt recon/fuzz. Bỏ trống để giữ giá trị hiện tại.")
         self.state.base_url = self._ask("Base URL", self.state.base_url)
-        self.state.recon_output = self._ask("Recon output", self.state.recon_output)
-        self.state.inventory_path = self._ask("Inventory path", self.state.inventory_path)
         self.state.fuzz_output = self._ask("Fuzz output", self.state.fuzz_output)
         self.state.findings_path = self._ask("Findings path", self.state.findings_path)
         self.state.max_requests = self._ask("Max requests", self.state.max_requests)

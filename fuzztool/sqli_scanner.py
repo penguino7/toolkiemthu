@@ -3,22 +3,16 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 from uuid import uuid4
 
 from .http_client import FuzzHttpClient, RequestBudgetExceeded
-from .models import Finding, FuzzTarget
+from .models import Finding, FuzzTarget, HttpExchange
 from .mutator import RequestMutator
 
 
 class SqliScanner:
-    """Scanner SQLi gom error-based, boolean-based va union-based.
-
-    Moi loai SQLi van co ham rieng de de doc:
-    - scan_error_based_sqli()
-    - scan_boolean_based_sqli()
-    - scan_union_based_sqli()
-    """
+    """SQLi scanner: error-based, boolean-based va union-based."""
 
     DB_ERROR_PATTERNS = [
         "mysqli_sql_exception",
@@ -40,246 +34,169 @@ class SqliScanner:
         "sqliteexception",
         "syntax error",
     ]
-    DEBUG_JSON_KEYS = {
-        "sql",
-        "query",
-        "debug",
-        "request",
-        "payload",
-        "raw",
-        "raw_sql",
-        "trace",
-        "stack",
-        "error",
-        "errors",
-    }
-    TOP_LEVEL_ECHO_KEYS = {
-        "id",
-        "q",
-        "keyword",
-        "author",
-        "sort",
-        "page",
-        "news_id",
-        "category_id",
-        "input",
-        "value",
-    }
+
+    DEBUG_KEYS = {"sql", "query", "debug", "request", "payload", "raw", "raw_sql", "trace", "stack", "error", "errors"}
+    ECHO_KEYS = {"id", "q", "keyword", "author", "sort", "page", "news_id", "category_id", "input", "value"}
 
     def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
         self.client = client
         self.config = config
         self.mutator = mutator or RequestMutator()
-        self.payload_sections = self._load_payload_sections()
+        self.payloads = self._load_payloads()
 
         sqli_config = config.get("sqli", {})
         self.union_max_columns = int(sqli_config.get("union_max_columns", 12))
         self.union_marker_prefix = str(sqli_config.get("union_marker_prefix", "FUZZUNION"))
 
-    def run(self, targets: List[FuzzTarget]) -> List[Finding]:
-        options = self.config.get("sqli", {})
-        findings: List[Finding] = []
+    def run(self, targets: list[FuzzTarget]) -> list[Finding]:
+        findings: list[Finding] = []
+        sqli_config = self.config.get("sqli", {})
 
-        if options.get("error_based", True):
-            findings.extend(self._scan_targets(targets, self.scan_error_based_sqli))
+        if sqli_config.get("error_based", True):
+            findings.extend(self._scan_each_target(targets, self.scan_error_based_sqli))
 
-        if options.get("boolean_based", False):
-            findings.extend(self._scan_targets(targets, self.scan_boolean_based_sqli))
+        if sqli_config.get("boolean_based", False):
+            findings.extend(self._scan_each_target(targets, self.scan_boolean_based_sqli))
 
-        if options.get("union_based", False):
-            prioritized_targets = self._prioritize_union_targets(targets)
-            findings.extend(self._scan_targets(prioritized_targets, self.scan_union_based_sqli))
+        if sqli_config.get("union_based", False):
+            findings.extend(self._scan_each_target(self._union_targets_first(targets), self.scan_union_based_sqli))
 
         return findings
 
-    def scan_error_based_sqli(self, target: FuzzTarget) -> List[Finding]:
-        """Gui payload pha SQL va tim loi database trong response."""
+    def scan_error_based_sqli(self, target: FuzzTarget) -> list[Finding]:
+        """Gui payload pha SQL, neu response co loi DB thi ghi finding."""
 
-        for payload in self._error_payloads(target):
-            method, url, body, headers = self.mutator.mutate(target, payload)
-            response = self.client.send(method, url, body=body, headers=headers)
-
-            db_error = self._db_error_evidence(response.text)
-            if not db_error:
-                continue
-
-            return [
-                Finding(
-                    vuln_type="sqli",
-                    subtype="error_based",
-                    severity="high",
-                    target=target,
-                    payload=payload,
-                    evidence="database_error_response",
-                    request_url=response.url,
-                    status=response.status,
-                    details={
-                        "matched_patterns": db_error.get("matched_patterns", []),
-                        "response_excerpt": db_error.get("response_excerpt", ""),
-                        "response_content_type": response.headers.get("content-type", ""),
-                        "elapsed_seconds": round(response.elapsed_seconds, 4),
-                        "error": response.error,
-                    },
-                )
-            ]
+        for payload in self._payloads_for(f"error.{self._payload_kind(target)}", target):
+            response = self._send_payload(target, payload)
+            evidence = self._db_error_evidence(response.text)
+            if evidence:
+                details = {
+                    **evidence,
+                    "content_type": response.headers.get("content-type", ""),
+                    "elapsed_seconds": round(response.elapsed_seconds, 4),
+                    "error": response.error,
+                }
+                return [self._finding("error_based", "high", target, payload, response, "database_error", details)]
 
         return []
 
-    def scan_boolean_based_sqli(self, target: FuzzTarget) -> List[Finding]:
-        """So sanh response khi dieu kien SQL dung va sai."""
+    def scan_boolean_based_sqli(self, target: FuzzTarget) -> list[Finding]:
+        """Gui cap payload true/false va so sanh response."""
 
         for true_payload, false_payload in self._boolean_payload_pairs(target):
-            true_method, true_url, true_body, true_headers = self.mutator.mutate(target, true_payload)
-            true_response = self.client.send(true_method, true_url, body=true_body, headers=true_headers)
-
-            false_method, false_url, false_body, false_headers = self.mutator.mutate(target, false_payload)
-            false_response = self.client.send(false_method, false_url, body=false_body, headers=false_headers)
+            true_response = self._send_payload(target, true_payload)
+            false_response = self._send_payload(target, false_payload)
 
             if true_response.error or false_response.error:
                 continue
-
-            same_status = true_response.status == false_response.status
-            response_is_different = self._response_changed(true_response.text, false_response.text)
-            if not same_status or not response_is_different:
+            if true_response.status != false_response.status:
+                continue
+            if not self._response_changed(true_response.text, false_response.text):
                 continue
 
-            return [
-                Finding(
-                    vuln_type="sqli",
-                    subtype="boolean_based",
-                    severity="medium",
-                    target=target,
-                    payload=f"{true_payload} / {false_payload}",
-                    evidence="true_false_response_difference",
-                    request_url=true_response.url,
-                    status=true_response.status,
-                    details={
-                        "true_length": len(true_response.text),
-                        "false_length": len(false_response.text),
-                    },
-                )
-            ]
+            details = {
+                "true_length": len(true_response.text),
+                "false_length": len(false_response.text),
+            }
+            payload = f"{true_payload} / {false_payload}"
+            return [self._finding("boolean_based", "medium", target, payload, true_response, "true_false_diff", details)]
 
         return []
 
-    def scan_union_based_sqli(self, target: FuzzTarget) -> List[Finding]:
-        """Thu UNION SELECT va chi ghi finding khi marker xuat hien trong response."""
+    def scan_union_based_sqli(self, target: FuzzTarget) -> list[Finding]:
+        """Thu UNION SELECT va chi ghi finding khi marker nam trong data field."""
 
-        baseline_response = self._send_baseline(target)
-        if baseline_response.error:
-            print(f"[!] Skip union-based target because baseline failed: {target.key} error={baseline_response.error}")
+        baseline = self._send_baseline(target)
+        if baseline.error:
+            print(f"[!] Skip union target: {target.key} baseline error={baseline.error}")
             return []
 
-        marker = self._new_union_marker()
-        if marker in baseline_response.text:
+        marker = self._new_marker()
+        if marker in baseline.text:
             return []
 
         for column_count in range(1, self.union_max_columns + 1):
-            columns_sql = self._union_columns(marker, column_count)
-
-            for payload in self._union_payloads(target, columns_sql):
-                method, url, body, headers = self.mutator.mutate(target, payload)
-                response = self.client.send(method, url, body=body, headers=headers)
-
+            columns = self._union_columns(marker, column_count)
+            for payload in self._payloads_for(f"union.{self._payload_kind(target)}", target, {"columns": columns}):
+                response = self._send_payload(target, payload)
                 if response.error:
                     continue
 
-                marker_evidence = self._marker_evidence(
-                    response.text,
-                    marker,
-                    response.headers.get("content-type", ""),
-                )
-                if not marker_evidence:
+                evidence = self._marker_evidence(response.text, marker, response.headers.get("content-type", ""))
+                if not evidence:
                     continue
 
-                return [
-                    Finding(
-                        vuln_type="sqli",
-                        subtype="union_based",
-                        severity="high",
-                        target=target,
-                        payload=payload,
-                        evidence="union_marker_in_response",
-                        request_url=response.url,
-                        status=response.status,
-                        details={
-                            "analysis_summary": (
-                                "Union-based SQLi confirmed because a scanner-generated marker was returned "
-                                "inside application data fields, not only inside debug SQL or echoed input."
-                            ),
-                            "confirmation_reason": "marker_found_in_non_debug_json_fields",
-                            "marker": marker,
-                            "column_count": column_count,
-                            "matched_paths": marker_evidence.get("matched_paths", []),
-                            "ignored_paths": marker_evidence.get("ignored_paths", []),
-                            "ignored_reason": (
-                                "Paths such as sql/debug/request and top-level echoed input fields are ignored "
-                                "to reduce false positives."
-                            ),
-                            "response_excerpt": marker_evidence.get("response_excerpt", ""),
-                            "response_content_type": response.headers.get("content-type", ""),
-                            "elapsed_seconds": round(response.elapsed_seconds, 4),
-                            "test_more_suggestions": [
-                                "Use ORDER BY to confirm the SELECT column count.",
-                                "Move the marker across individual UNION columns to identify which columns are rendered.",
-                                "After authorization, test whether database metadata or low-risk proof values can be returned.",
-                            ],
-                            "remediation_hint": (
-                                "Use parameterized queries/prepared statements, validate numeric parameters as integers, "
-                                "and remove SQL/debug output from API responses."
-                            ),
-                        },
-                    )
-                ]
+                details = {
+                    **evidence,
+                    "column_count": column_count,
+                    "content_type": response.headers.get("content-type", ""),
+                    "elapsed_seconds": round(response.elapsed_seconds, 4),
+                }
+                return [self._finding("union_based", "high", target, payload, response, "union_marker", details)]
 
         return []
 
-    def _scan_targets(self, targets: List[FuzzTarget], scan_function) -> List[Finding]:
-        findings: List[Finding] = []
+    def _scan_each_target(self, targets: list[FuzzTarget], scan_func) -> list[Finding]:
+        findings: list[Finding] = []
         for target in targets:
             try:
-                findings.extend(scan_function(target))
+                findings.extend(scan_func(target))
             except RequestBudgetExceeded as error:
                 print(f"[!] {error}")
                 return findings
         return findings
 
-    def _send_baseline(self, target: FuzzTarget):
+    def _send_baseline(self, target: FuzzTarget) -> HttpExchange:
         method, url, body, headers = self.mutator.baseline(target)
         return self.client.send(method, url, body=body, headers=headers)
 
-    def _error_payloads(self, target: FuzzTarget) -> List[str]:
-        return self._render_payload_section(f"error.{self._payload_kind(target)}", target)
+    def _send_payload(self, target: FuzzTarget, payload: str) -> HttpExchange:
+        method, url, body, headers = self.mutator.mutate(target, payload)
+        return self.client.send(method, url, body=body, headers=headers)
 
-    def _boolean_payload_pairs(self, target: FuzzTarget) -> List[Tuple[str, str]]:
-        kind = self._payload_kind(target)
-        true_payloads = self._render_payload_section(f"boolean.{kind}.true", target)
-        false_payloads = self._render_payload_section(f"boolean.{kind}.false", target)
-        return list(zip(true_payloads, false_payloads))
-
-    def _union_payloads(self, target: FuzzTarget, columns_sql: str) -> List[str]:
-        return self._render_payload_section(f"union.{self._payload_kind(target)}", target, {"columns": columns_sql})
+    def _finding(
+        self,
+        subtype: str,
+        severity: str,
+        target: FuzzTarget,
+        payload: str,
+        response: HttpExchange,
+        evidence: str,
+        details: dict,
+    ) -> Finding:
+        return Finding(
+            vuln_type="sqli",
+            subtype=subtype,
+            severity=severity,
+            target=target,
+            payload=payload,
+            evidence=evidence,
+            request_url=response.url,
+            status=response.status,
+            details=details,
+        )
 
     def _payload_kind(self, target: FuzzTarget) -> str:
         return "numeric" if target.type_hint in {"int", "float"} else "string"
 
-    def _render_payload_section(
-        self,
-        section_name: str,
-        target: FuzzTarget,
-        extra_values: Dict[str, str] | None = None,
-    ) -> List[str]:
-        payloads: List[str] = []
-        for template in self.payload_sections.get(section_name, []):
-            payload = template.replace("{sample}", target.sample_value)
-            for name, value in (extra_values or {}).items():
-                payload = payload.replace("{" + name + "}", value)
-            payloads.append(payload)
-        return payloads
+    def _boolean_payload_pairs(self, target: FuzzTarget) -> list[tuple[str, str]]:
+        kind = self._payload_kind(target)
+        true_payloads = self._payloads_for(f"boolean.{kind}.true", target)
+        false_payloads = self._payloads_for(f"boolean.{kind}.false", target)
+        return list(zip(true_payloads, false_payloads))
 
-    def _load_payload_sections(self) -> Dict[str, List[str]]:
+    def _payloads_for(self, section: str, target: FuzzTarget, extra: dict[str, str] | None = None) -> list[str]:
+        rendered_payloads = []
+        for template in self.payloads.get(section, []):
+            payload = template.replace("{sample}", target.sample_value)
+            for key, value in (extra or {}).items():
+                payload = payload.replace("{" + key + "}", value)
+            rendered_payloads.append(payload)
+        return rendered_payloads
+
+    def _load_payloads(self) -> dict[str, list[str]]:
         payload_file = Path(__file__).with_name("payloads") / "sqli.txt"
-        sections: Dict[str, List[str]] = {}
+        sections: dict[str, list[str]] = {}
         current_section = ""
 
         for raw_line in payload_file.read_text(encoding="utf-8").splitlines():
@@ -291,42 +208,34 @@ class SqliScanner:
                 sections.setdefault(current_section, [])
                 continue
             if current_section:
-                sections.setdefault(current_section, []).append(line)
+                sections[current_section].append(line)
 
         return sections
 
-    def _db_error_evidence(self, text: str, max_chars: int = 800) -> dict:
-        cleaned = self._compact_text(text or "")
-        lowered = cleaned.lower()
-        matched_patterns = [pattern for pattern in self.DB_ERROR_PATTERNS if pattern in lowered]
-        if not matched_patterns:
+    def _db_error_evidence(self, text: str) -> dict:
+        compact = self._compact(text)
+        lowered = compact.lower()
+        matched = [pattern for pattern in self.DB_ERROR_PATTERNS if pattern in lowered]
+        if not matched:
             return {}
 
-        first_match_index = min(lowered.find(pattern) for pattern in matched_patterns)
-        excerpt_start = max(0, first_match_index - 160)
-        excerpt_end = min(len(cleaned), excerpt_start + max_chars)
-
+        first_index = min(lowered.find(pattern) for pattern in matched)
         return {
-            "matched_patterns": matched_patterns,
-            "response_excerpt": cleaned[excerpt_start:excerpt_end],
+            "matched_patterns": matched,
+            "response_excerpt": self._excerpt(compact, first_index, 800),
         }
 
     def _response_changed(self, true_text: str, false_text: str) -> bool:
         if not true_text and not false_text:
             return False
-        bigger_response_size = max(len(true_text), len(false_text))
-        minimum_delta = max(20, int(bigger_response_size * 0.15))
+        bigger_size = max(len(true_text), len(false_text))
+        minimum_delta = max(20, int(bigger_size * 0.15))
         return abs(len(true_text) - len(false_text)) > minimum_delta
 
-    def _marker_evidence(self, text: str, marker: str, content_type: str = "", max_chars: int = 500) -> dict:
-        json_evidence = self._json_marker_evidence(text, marker)
-        if json_evidence:
-            return json_evidence
-
-        if "json" in (content_type or "").lower():
-            return {}
-
-        return self._text_marker_evidence(text, marker, max_chars)
+    def _marker_evidence(self, text: str, marker: str, content_type: str) -> dict:
+        if "json" in content_type.lower():
+            return self._json_marker_evidence(text, marker)
+        return self._text_marker_evidence(text, marker)
 
     def _json_marker_evidence(self, text: str, marker: str) -> dict:
         try:
@@ -334,11 +243,11 @@ class SqliScanner:
         except json.JSONDecodeError:
             return {}
 
-        matched_paths: List[str] = []
-        ignored_paths: List[str] = []
-        matched_values: List[str] = []
+        matched_paths: list[str] = []
+        ignored_paths: list[str] = []
+        matched_values: list[str] = []
+        self._walk_json(data, marker, [], matched_paths, ignored_paths, matched_values)
 
-        self._find_marker_in_json(data, marker, [], matched_paths, ignored_paths, matched_values)
         if not matched_paths:
             return {}
 
@@ -346,81 +255,76 @@ class SqliScanner:
             "marker": marker,
             "matched_paths": matched_paths,
             "ignored_paths": ignored_paths,
-            "response_excerpt": self._short_json_value(matched_values[0]),
+            "response_excerpt": self._compact(matched_values[0])[:500],
         }
 
-    def _find_marker_in_json(
+    def _walk_json(
         self,
         value: Any,
         marker: str,
-        path: List[str],
-        matched_paths: List[str],
-        ignored_paths: List[str],
-        matched_values: List[str],
+        path: list[str],
+        matched_paths: list[str],
+        ignored_paths: list[str],
+        matched_values: list[str],
     ) -> None:
         if isinstance(value, dict):
             for key, child in value.items():
-                self._find_marker_in_json(child, marker, [*path, str(key)], matched_paths, ignored_paths, matched_values)
+                self._walk_json(child, marker, [*path, str(key)], matched_paths, ignored_paths, matched_values)
             return
 
         if isinstance(value, list):
             for index, child in enumerate(value):
-                self._find_marker_in_json(child, marker, [*path, str(index)], matched_paths, ignored_paths, matched_values)
+                self._walk_json(child, marker, [*path, str(index)], matched_paths, ignored_paths, matched_values)
             return
 
         if marker not in str(value):
             return
 
         path_text = ".".join(path) if path else "$"
-        if self._is_ignored_marker_path(path):
+        if self._ignored_json_path(path):
             ignored_paths.append(path_text)
             return
 
         matched_paths.append(path_text)
         matched_values.append(str(value))
 
-    def _is_ignored_marker_path(self, path: List[str]) -> bool:
-        lowered_path = [item.lower() for item in path]
-        if any(item in self.DEBUG_JSON_KEYS for item in lowered_path):
-            return True
-        return len(lowered_path) == 1 and lowered_path[0] in self.TOP_LEVEL_ECHO_KEYS
+    def _ignored_json_path(self, path: list[str]) -> bool:
+        lowered = [item.lower() for item in path]
+        return any(item in self.DEBUG_KEYS for item in lowered) or (len(lowered) == 1 and lowered[0] in self.ECHO_KEYS)
 
-    def _short_json_value(self, value: str, max_chars: int = 500) -> str:
-        compacted = self._compact_text(value)
-        return compacted[:max_chars]
-
-    def _text_marker_evidence(self, text: str, marker: str, max_chars: int = 500) -> dict:
-        cleaned = self._compact_text(text or "")
-        marker_index = cleaned.find(marker)
+    def _text_marker_evidence(self, text: str, marker: str) -> dict:
+        compact = self._compact(text)
+        marker_index = compact.find(marker)
         if marker_index < 0:
             return {}
-
-        excerpt_start = max(0, marker_index - 160)
-        excerpt_end = min(len(cleaned), marker_index + len(marker) + max_chars)
         return {
             "marker": marker,
             "matched_paths": [],
             "ignored_paths": [],
-            "response_excerpt": cleaned[excerpt_start:excerpt_end],
+            "response_excerpt": self._excerpt(compact, marker_index, 500),
         }
 
-    def _compact_text(self, text: str) -> str:
-        no_tags = re.sub(r"<[^>]+>", " ", text)
-        return re.sub(r"\s+", " ", no_tags).strip()
+    def _compact(self, text: str) -> str:
+        without_tags = re.sub(r"<[^>]+>", " ", text or "")
+        return re.sub(r"\s+", " ", without_tags).strip()
 
-    def _new_union_marker(self) -> str:
+    def _excerpt(self, text: str, center_index: int, size: int) -> str:
+        start = max(0, center_index - 160)
+        end = min(len(text), start + size)
+        return text[start:end]
+
+    def _new_marker(self) -> str:
         return f"{self.union_marker_prefix}_{uuid4().hex[:8]}"
 
     def _union_columns(self, marker: str, column_count: int) -> str:
-        quoted_marker = f"'{marker}'"
-        return ",".join([quoted_marker for _ in range(column_count)])
+        return ",".join([f"'{marker}'" for _ in range(column_count)])
 
-    def _prioritize_union_targets(self, targets: List[FuzzTarget]) -> List[FuzzTarget]:
-        def priority(target: FuzzTarget) -> tuple[int, int, int, str]:
+    def _union_targets_first(self, targets: list[FuzzTarget]) -> list[FuzzTarget]:
+        def score(target: FuzzTarget) -> tuple[int, int, int, str]:
             name = target.param_name.lower()
-            numeric_type = 0 if target.type_hint in {"int", "float"} else 1
-            id_like_name = 0 if name == "id" or name.endswith("_id") or name in {"filter_cat", "edit_id"} else 1
+            type_score = 0 if target.type_hint in {"int", "float"} else 1
+            name_score = 0 if name == "id" or name.endswith("_id") else 1
             location_score = {"query": 0, "body": 1, "json": 2}.get(target.param_location, 3)
-            return numeric_type, id_like_name, location_score, target.key
+            return type_score, name_score, location_score, target.key
 
-        return sorted(targets, key=priority)
+        return sorted(targets, key=score)

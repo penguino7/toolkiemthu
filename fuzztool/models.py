@@ -18,7 +18,6 @@ class FuzzTarget:
     sample_values: List[str] = field(default_factory=list)  # Giá trị mẫu đã thấy khi recon.
     request_content_type: str = ""  # Content-Type gốc của request nếu có.
     request_headers: Dict[str, str] = field(default_factory=dict)  # Headers gốc để gửi lại khi fuzz.
-    candidate_tests: List[str] = field(default_factory=list)  # Gợi ý scanner nên chạy: sqli, reflected_xss...
     record: Dict[str, Any] = field(default_factory=dict)  # Record gốc từ inventory để cần thì dựng body/json.
 
     @property

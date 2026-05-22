@@ -13,7 +13,6 @@
     "delay_seconds": 0.05,
     "request_timeout_seconds": 15,
     "use_environment_proxy": false,
-    "dry_run": false,
     "skip_param_names": [
       "csrf",
       "csrf_token",

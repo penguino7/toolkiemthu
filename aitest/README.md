@@ -13,7 +13,7 @@ inventory.json
 -> gửi request
 -> rút gọn response + detector signal
 -> lặp lại vài vòng
--> xuất sessions.json / sessions.md
+-> xuất sessions.json
 ```
 
 Chạy mẫu:
@@ -74,7 +74,6 @@ Output:
 
 ```text
 aitest-output/sessions.json
-aitest-output/sessions.md
 ```
 
 Giới hạn an toàn:

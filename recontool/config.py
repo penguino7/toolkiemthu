@@ -18,13 +18,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "seeds": ["/"],
     "static": {
-        "enabled": True,
         "max_pages": 50,
         "max_depth": 3,
         "timeout_seconds": 10
     },
     "dynamic": {
-        "enabled": False,
         "max_pages": 20,
         "timeout_ms": 15000,
         "headless": True,
@@ -50,8 +48,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "dedupe": {
         "mode": "smart"
-    },
-    "output_dir": "recon-output"
+    }
 }
 
 
@@ -78,8 +75,8 @@ class ConfigLoader:
     def deep_merge(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         """Merge dict lồng nhau.
 
-        Ví dụ file config chỉ ghi `"dynamic": {"enabled": true}` thì các key
-        còn lại như `max_pages`, `timeout_ms` vẫn được giữ từ mặc định.
+        Ví dụ file config chỉ ghi `"dynamic": {"max_pages": 30}` thì các key
+        còn lại như `timeout_ms`, `headless` vẫn được giữ từ mặc định.
         """
         result = dict(base)
         for key, value in override.items():

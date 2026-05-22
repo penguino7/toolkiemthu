@@ -42,13 +42,11 @@
     "/spa/logs"
   ],
   "static": {
-    "enabled": true,
     "max_pages": 80,
     "max_depth": 3,
     "timeout_seconds": 10
   },
   "dynamic": {
-    "enabled": false,
     "max_pages": 30,
     "timeout_ms": 15000,
     "headless": true,
@@ -68,6 +66,5 @@
   },
   "dedupe": {
     "mode": "smart"
-  },
-  "output_dir": "recon-output"
+  }
 }

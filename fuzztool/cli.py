@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import List
 
 from .config import FuzzConfigLoader
 from .http_client import FuzzHttpClient, RequestBudgetExceeded
@@ -13,73 +12,46 @@ from .sqli_scanner import SqliScanner
 from .xss_scanner import XssScanner
 
 
-XSS_TARGET_TESTS = {
-    "reflected_xss_candidate",
-    "stored_xss_candidate",
-    "api_xss_source",
-    "reflection_detected",
-}
-
-
-class FuzzCliParser:
-    """Parser dong lenh cho fuzztool."""
-
-    def build(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description="Fuzz tool doc inventory.json tu recontool")
-        parser.add_argument("inventory", help="Duong dan inventory.json sinh boi recontool")
-        parser.add_argument("--base-url", help="Override host/port khi fuzz inventory cu hoac doi cong lab")
-        parser.add_argument("-c", "--config", default="fuzz.config.example.json", help="File config fuzz")
-        parser.add_argument("-o", "--out", help="Thu muc output")
-        parser.add_argument("--xss", action="store_true", help="Bat tat ca XSS: reflected, DOM, stored")
-        parser.add_argument("--xss-reflected", action="store_true", help="Bat rieng reflected XSS")
-        parser.add_argument("--xss-stored", action="store_true", help="Bat rieng stored XSS")
-        parser.add_argument("--xss-dom", action="store_true", help="Bat rieng DOM XSS")
-        parser.add_argument("--sqli", action="store_true", help="Bat tat ca SQLi: error, boolean, union")
-        parser.add_argument("--sqli-error", action="store_true", help="Bat rieng SQLi error-based")
-        parser.add_argument("--sqli-boolean", action="store_true", help="Bat rieng SQLi boolean-based")
-        parser.add_argument("--sqli-union", action="store_true", help="Bat rieng SQLi union-based")
-        parser.add_argument("--include-post", action="store_true", help="Cho phep fuzz body/json POST")
-        parser.add_argument("--max-requests", type=int, help="Gioi han so request fuzz")
-        parser.add_argument("--dry-run", action="store_true", help="Chi liet ke target, khong gui request")
-        return parser
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Fuzz XSS/SQLi tu inventory.json cua recontool")
+    parser.add_argument("inventory", help="Duong dan recon-output/inventory.json")
+    parser.add_argument("--base-url", help="Doi host/port khi fuzz")
+    parser.add_argument("-c", "--config", default="fuzz.config.example.json", help="File config fuzz")
+    parser.add_argument("-o", "--out", help="Thu muc output")
+    parser.add_argument("--xss", action="store_true", help="Chay tat ca XSS")
+    parser.add_argument("--sqli", action="store_true", help="Chay tat ca SQLi")
+    parser.add_argument("--include-post", action="store_true", help="Cho phep fuzz body/json POST")
+    parser.add_argument("--max-requests", type=int, help="Gioi han so request")
+    return parser
 
 
 class FuzzApplication:
-    """Dieu phoi pipeline fuzz."""
+    """Luồng chính: đọc inventory -> chọn target -> chạy scanner -> ghi report."""
 
     def __init__(self, loader: FuzzConfigLoader | None = None, reporter: FuzzReporter | None = None) -> None:
         self.loader = loader or FuzzConfigLoader()
         self.reporter = reporter or FuzzReporter()
 
     def run(self, argv=None) -> int:
-        # Luồng chính: đọc inventory -> chọn target -> fuzz -> ghi findings.
-        args = self._parse_args(argv)
+        args = build_parser().parse_args(argv)
         config = self._load_config(args)
+        selected = self._selected_scanners(config)
 
-        selected = self._selected_kinds(config)
         if not selected:
-            print("[!] Chua chon scanner. Dung --xss, --sqli hoac bat trong config.")
+            print("[!] Chua chon scanner. Dung --xss hoac --sqli.")
             return 2
 
-        targets = self._load_targets(args.inventory, selected, config)
-        self._print_scan_plan(config, targets)
+        targets = self._load_targets(args.inventory, config)
+        self._print_plan(config, targets)
 
-        if self._is_dry_run(config):
-            return self._run_dry_run(targets, config)
-
-        findings, client = self._scan_targets(config, targets)
+        client = self._build_client(config)
+        findings = self._scan(config, client, targets)
         self._write_report(findings, client, config)
         return 0
 
-    def _parse_args(self, argv=None) -> argparse.Namespace:
-        return FuzzCliParser().build().parse_args(argv)
-
     def _load_config(self, args: argparse.Namespace) -> dict:
         config = self.loader.load(args.config)
-        self._apply_overrides(config, args)
-        return config
 
-    def _apply_overrides(self, config: dict, args: argparse.Namespace) -> None:
         if args.out:
             config["output_dir"] = args.out
         if args.base_url:
@@ -88,55 +60,35 @@ class FuzzApplication:
             config.setdefault("safety", {})["include_post"] = True
         if args.max_requests is not None:
             config.setdefault("safety", {})["max_requests"] = args.max_requests
-        if args.dry_run:
-            config.setdefault("safety", {})["dry_run"] = True
-
-        self._apply_xss_overrides(config, args)
-        self._apply_sqli_overrides(config, args)
-
-    def _apply_xss_overrides(self, config: dict, args: argparse.Namespace) -> None:
-        selected_xss_type = args.xss_reflected or args.xss_stored or args.xss_dom
-        if args.xss or selected_xss_type:
-            config.setdefault("xss", {})["enabled"] = True
 
         if args.xss:
-            # Trong lab, --xss nghia la fuzz du reflected, DOM va stored.
-            config.setdefault("xss", {})["reflected"] = True
-            config.setdefault("xss", {})["dom"] = True
-            config.setdefault("xss", {})["stored"] = True
-            config.setdefault("safety", {})["include_post"] = True
-            return
-
-        if selected_xss_type:
-            config.setdefault("xss", {})["reflected"] = bool(args.xss_reflected)
-            config.setdefault("xss", {})["stored"] = bool(args.xss_stored)
-            config.setdefault("xss", {})["dom"] = bool(args.xss_dom)
-            if args.xss_stored:
-                config.setdefault("safety", {})["include_post"] = True
-
-    def _apply_sqli_overrides(self, config: dict, args: argparse.Namespace) -> None:
-        selected_sqli_type = args.sqli_error or args.sqli_boolean or args.sqli_union
-        if args.sqli or selected_sqli_type:
-            config.setdefault("sqli", {})["enabled"] = True
-
+            self._enable_all_xss(config)
         if args.sqli:
-            # Trong lab, --sqli nghia la fuzz du error-based, boolean va union.
-            config.setdefault("sqli", {})["error_based"] = True
-            config.setdefault("sqli", {})["boolean_based"] = True
-            config.setdefault("sqli", {})["union_based"] = True
-            config.setdefault("safety", {})["include_post"] = True
-            if args.max_requests is None:
-                current_limit = int(config.setdefault("safety", {}).get("max_requests", 800))
-                config.setdefault("safety", {})["max_requests"] = max(current_limit, 800)
-            return
+            self._enable_all_sqli(config, args.max_requests)
 
-        if selected_sqli_type:
-            config.setdefault("sqli", {})["error_based"] = bool(args.sqli_error)
-            config.setdefault("sqli", {})["boolean_based"] = bool(args.sqli_boolean)
-            config.setdefault("sqli", {})["union_based"] = bool(args.sqli_union)
-            config.setdefault("safety", {})["include_post"] = True
+        return config
 
-    def _selected_kinds(self, config: dict) -> set[str]:
+    def _enable_all_xss(self, config: dict) -> None:
+        xss = config.setdefault("xss", {})
+        xss["enabled"] = True
+        xss["reflected"] = True
+        xss["dom"] = True
+        xss["stored"] = True
+        config.setdefault("safety", {})["include_post"] = True
+
+    def _enable_all_sqli(self, config: dict, max_requests: int | None) -> None:
+        sqli = config.setdefault("sqli", {})
+        sqli["enabled"] = True
+        sqli["error_based"] = True
+        sqli["boolean_based"] = True
+        sqli["union_based"] = True
+        config.setdefault("safety", {})["include_post"] = True
+
+        if max_requests is None:
+            safety = config.setdefault("safety", {})
+            safety["max_requests"] = max(int(safety.get("max_requests", 800)), 800)
+
+    def _selected_scanners(self, config: dict) -> set[str]:
         selected = set()
         if config.get("xss", {}).get("enabled", False):
             selected.add("xss")
@@ -144,28 +96,11 @@ class FuzzApplication:
             selected.add("sqli")
         return selected
 
-    def _filter_post_targets(self, targets: List[FuzzTarget], config: dict) -> List[FuzzTarget]:
-        include_post = bool(config.get("safety", {}).get("include_post", False))
-        if include_post:
+    def _load_targets(self, inventory_path: str, config: dict) -> list[FuzzTarget]:
+        targets = InventoryLoader(config).targets_for(inventory_path)
+        if config.get("safety", {}).get("include_post", False):
             return targets
         return [target for target in targets if target.param_location == "query"]
-
-    def _load_targets(self, inventory_path: str, selected: set[str], config: dict) -> List[FuzzTarget]:
-        targets = InventoryLoader(config).targets_for(inventory_path, selected)
-        return self._filter_post_targets(targets, config)
-
-    def _print_scan_plan(self, config: dict, targets: List[FuzzTarget]) -> None:
-        self._print_scanner_summary(config)
-        self._print_safety_warnings(config)
-        print(f"[*] Selected targets: {len(targets)}")
-
-    def _is_dry_run(self, config: dict) -> bool:
-        return bool(config.get("safety", {}).get("dry_run", False))
-
-    def _run_dry_run(self, targets: List[FuzzTarget], config: dict) -> int:
-        self._print_targets(targets)
-        self.reporter.export([], config.get("output_dir", "fuzz-output"))
-        return 0
 
     def _build_client(self, config: dict) -> FuzzHttpClient:
         safety = config.get("safety", {})
@@ -177,25 +112,31 @@ class FuzzApplication:
             use_environment_proxy=bool(safety.get("use_environment_proxy", False)),
         )
 
-    def _run_scanners(self, config: dict, client: FuzzHttpClient, targets: List[FuzzTarget]) -> List[Finding]:
-        findings: List[Finding] = []
+    def _scan(self, config: dict, client: FuzzHttpClient, targets: list[FuzzTarget]) -> list[Finding]:
+        findings: list[Finding] = []
         try:
             if config.get("xss", {}).get("enabled", False):
-                xss_targets = [target for target in targets if self._is_xss_target(target)]
-                findings.extend(XssScanner(client, config).run(xss_targets))
+                findings.extend(XssScanner(client, config).run(self._xss_targets(targets)))
             if config.get("sqli", {}).get("enabled", False):
-                sqli_targets = [target for target in targets if self._is_sqli_target(target)]
-                findings.extend(SqliScanner(client, config).run(sqli_targets))
+                findings.extend(SqliScanner(client, config).run(self._sqli_targets(targets)))
         except RequestBudgetExceeded as error:
             print(f"[!] {error}")
         return findings
 
-    def _scan_targets(self, config: dict, targets: List[FuzzTarget]) -> tuple[List[Finding], FuzzHttpClient]:
-        client = self._build_client(config)
-        findings = self._run_scanners(config, client, targets)
-        return findings, client
+    def _xss_targets(self, targets: list[FuzzTarget]) -> list[FuzzTarget]:
+        return targets
 
-    def _write_report(self, findings: List[Finding], client: FuzzHttpClient, config: dict) -> None:
+    def _sqli_targets(self, targets: list[FuzzTarget]) -> list[FuzzTarget]:
+        return targets
+
+    def _print_plan(self, config: dict, targets: list[FuzzTarget]) -> None:
+        if config.get("xss", {}).get("enabled", False):
+            print("[*] XSS scanners: reflected, dom, stored")
+        if config.get("sqli", {}).get("enabled", False):
+            print("[*] SQLi scanners: error-based, boolean-based, union-based")
+        print(f"[*] Selected targets: {len(targets)}")
+
+    def _write_report(self, findings: list[Finding], client: FuzzHttpClient, config: dict) -> None:
         output_dir = config.get("output_dir", "fuzz-output")
         self.reporter.export(findings, output_dir)
         print(f"[*] Findings: {len(findings)}")
@@ -203,44 +144,6 @@ class FuzzApplication:
         if client.error_count:
             print(f"[!] Request errors: {client.error_count} (timeouts: {client.timeout_count})")
         print(f"[*] Wrote: {Path(output_dir) / 'findings.json'}")
-        print(f"[*] Wrote: {Path(output_dir) / 'findings.md'}")
-
-    def _print_scanner_summary(self, config: dict) -> None:
-        if config.get("xss", {}).get("enabled", False):
-            xss = config.get("xss", {})
-            active = self._enabled_names(xss, [("reflected", "reflected"), ("dom", "dom"), ("stored", "stored")])
-            print(f"[*] XSS scanners: {', '.join(active) if active else 'none'}")
-
-        if config.get("sqli", {}).get("enabled", False):
-            sqli = config.get("sqli", {})
-            active = self._enabled_names(
-                sqli,
-                [
-                    ("error_based", "error-based"),
-                    ("boolean_based", "boolean-based"),
-                    ("union_based", "union-based"),
-                ],
-            )
-            print(f"[*] SQLi scanners: {', '.join(active) if active else 'none'}")
-
-    def _enabled_names(self, section: dict, options: list[tuple[str, str]]) -> List[str]:
-        return [display_name for key, display_name in options if section.get(key, False)]
-
-    def _print_safety_warnings(self, config: dict) -> None:
-        stored_enabled = bool(config.get("xss", {}).get("stored", False))
-        if stored_enabled and not config.get("xss", {}).get("stored_check_paths", []):
-            print("[!] Stored XSS can stored_check_paths de biet URL nao se mo lai de xac minh payload da luu.")
-
-    def _is_xss_target(self, target: FuzzTarget) -> bool:
-        tests = set(target.candidate_tests)
-        return bool(tests & XSS_TARGET_TESTS)
-
-    def _is_sqli_target(self, target: FuzzTarget) -> bool:
-        return any(test.startswith("sqli") for test in target.candidate_tests)
-
-    def _print_targets(self, targets: List[FuzzTarget]) -> None:
-        for target in targets:
-            print(f"[DRY] {target.key} sample={target.sample_value!r} candidates={','.join(target.candidate_tests)}")
 
 
 def main(argv=None) -> int:

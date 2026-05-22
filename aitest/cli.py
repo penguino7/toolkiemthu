@@ -47,7 +47,6 @@ class AiTestApplication:
 
         print(f"[*] Sessions: {len(sessions)}")
         print(f"[*] Wrote: {args.out}/sessions.json")
-        print(f"[*] Wrote: {args.out}/sessions.md")
         return 0
 
     def _tool_config(self, args: argparse.Namespace) -> dict:

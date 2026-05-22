@@ -9,9 +9,9 @@ from typing import Any, Dict
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "provider": {
-        "name": "offline",
-        "base_url": "http://127.0.0.1:11434",
-        "model": "llama3.1:8b",
+        "name": "openai_compatible",
+        "base_url": "",
+        "model": "",
         "api_key_env": "",
         "env_file": ".env",
         "auth_header": "Authorization",
@@ -19,7 +19,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "headers": {},
         "timeout_seconds": 60,
         "temperature": 0.1,
-        "stream": False,
     },
     "analysis": {
         "language": "vi",

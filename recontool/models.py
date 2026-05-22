@@ -20,7 +20,6 @@ class Param:
     type_hint: str = "string"
     sample_values: List[str] = field(default_factory=list)
     reflected: bool = False
-    candidate_tests: List[str] = field(default_factory=list)
 
     @property
     def key(self) -> str:
@@ -37,7 +36,6 @@ class Param:
             self.type_hint = other.type_hint 
         self.sample_values = _unique(self.sample_values + other.sample_values)[:8]
         self.reflected = self.reflected or other.reflected
-        self.candidate_tests = sorted(set(self.candidate_tests + other.candidate_tests))
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -46,7 +44,6 @@ class Param:
             "type_hint": self.type_hint,
             "sample_values": self.sample_values,
             "reflected": self.reflected,
-            "candidate_tests": self.candidate_tests,
         }
 
 @dataclass
@@ -80,7 +77,6 @@ class EndpointRecord:
     examples: List[str] = field(default_factory=list)
     seen_count: int = 1
     evidence: Dict[str, Any] = field(default_factory=dict)
-    candidate_tests: List[str] = field(default_factory=list)
 
     def add_param(self, param: Param) -> None:
         if param.key in self.params:
@@ -106,7 +102,6 @@ class EndpointRecord:
         self.source_tools = sorted(set(self.source_tools + other.source_tools))
         self.discovered_from = _unique(self.discovered_from + other.discovered_from)[:20]
         self.examples = _unique(self.examples + other.examples)[:10]
-        self.candidate_tests = sorted(set(self.candidate_tests + other.candidate_tests))
         self.evidence.update({k: v for k, v in other.evidence.items() if v})
 
     def to_dict(self) -> Dict[str, Any]:
@@ -131,5 +126,4 @@ class EndpointRecord:
             "examples": self.examples,
             "seen_count": self.seen_count,
             "evidence": self.evidence,
-            "candidate_tests": self.candidate_tests,
         }

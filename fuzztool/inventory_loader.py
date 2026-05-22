@@ -2,19 +2,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable, List
+from typing import List
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from .models import FuzzTarget
-from .scope import FuzzScope
-
-
-XSS_TARGET_TESTS = {
-    "reflected_xss_candidate",
-    "stored_xss_candidate",
-    "api_xss_source",
-    "reflection_detected",
-}
 
 
 class InventoryLoader:
@@ -23,14 +14,13 @@ class InventoryLoader:
     def __init__(self, config: dict) -> None:
         self.config = config
         self.base_url = str(config.get("base_url", "")).rstrip("/")
-        self.scope = FuzzScope(config)
+        self.scope = ScopeFilter(config)
         self.skip_names = {name.lower() for name in config.get("safety", {}).get("skip_param_names", [])}
 
     def load_records(self, path: str) -> List[dict]:
         return json.loads(Path(path).read_text(encoding="utf-8"))
 
-    def targets_for(self, path: str, kinds: Iterable[str]) -> List[FuzzTarget]:
-        kinds = set(kinds)
+    def targets_for(self, path: str) -> List[FuzzTarget]:
         records = self.load_records(path)
 
         targets: List[FuzzTarget] = []
@@ -42,7 +32,7 @@ class InventoryLoader:
 
             for param in record.get("params", []):
                 target = self._target_from_param(record, param, fuzz_url)
-                if target and self._matches_kind(target, kinds):
+                if target:
                     targets.append(target)
 
         return targets
@@ -84,17 +74,23 @@ class InventoryLoader:
             sample_values=[str(value) for value in param.get("sample_values", [])],
             request_content_type=str(record.get("request_content_type", "")),
             request_headers={str(k).lower(): str(v) for k, v in record.get("request_headers", {}).items()},
-            candidate_tests=list(param.get("candidate_tests", []) or record.get("candidate_tests", [])),
             record=record,
         )
 
-    def _matches_kind(self, target: FuzzTarget, kinds: set[str]) -> bool:
-        tests = set(target.candidate_tests)
 
-        if "xss" in kinds and tests & XSS_TARGET_TESTS:
-            return True
+class ScopeFilter:
+    """Gioi han host/path duoc phep fuzz."""
 
-        if "sqli" in kinds and any(test.startswith("sqli") for test in tests):
-            return True
+    def __init__(self, config: dict) -> None:
+        scope = config.get("scope", {})
+        self.include_hosts = {host.lower() for host in scope.get("include_hosts", [])}
+        self.exclude_paths = list(scope.get("exclude_paths", []))
 
-        return False
+    def allows(self, url: str) -> bool:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+
+        if self.include_hosts and host not in self.include_hosts:
+            return False
+
+        return not any(parsed.path.startswith(path) for path in self.exclude_paths)

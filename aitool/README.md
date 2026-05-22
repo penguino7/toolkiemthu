@@ -12,7 +12,6 @@ Sau đó sinh report:
 
 ```text
 ai-output/ai-report.json
-ai-output/ai-report.md
 ```
 
 `aitool` không gửi payload, không crawl, không fuzz và không sửa logic của `recontool` hoặc `fuzztool`.
@@ -41,9 +40,9 @@ python -B -m aitool fuzz-output/findings.json --config ai.config.example.json
 findings.json
 -> analyzer.py lọc và rút gọn dữ liệu
 -> redactor.py ẩn token/cookie/password nếu có
--> ai_client.py gọi provider đã cấu hình
--> schemas.py kiểm tra JSON AI trả về
--> reporter.py ghi ai-report.json và ai-report.md
+-> api_client.py gọi API /chat/completions
+-> analyzer.py kiểm tra JSON AI trả về
+-> reporter.py ghi ai-report.json
 ```
 
 ## Cấu Hình AI
@@ -54,47 +53,7 @@ File cấu hình mẫu nằm ở repo root:
 ai.config.example.json
 ```
 
-Config mẫu hiện tại dùng provider `openai_compatible`. Nếu muốn test không cần API, đổi provider về:
-
-```json
-"provider": {
-  "name": "offline"
-}
-```
-
-Chế độ `offline` không gọi API. Nó dùng fallback nội bộ để gán CWE cơ bản:
-
-```text
-xss  -> CWE-79
-sqli -> CWE-89
-```
-
-## Dùng Ollama
-
-Ví dụ cấu hình Ollama local:
-
-```json
-"provider": {
-  "name": "ollama",
-  "base_url": "http://127.0.0.1:11434",
-  "model": "llama3.1:8b",
-  "timeout_seconds": 60,
-  "temperature": 0.1
-}
-```
-
-Chạy Ollama trước:
-
-```bash
-ollama serve
-ollama pull llama3.1:8b
-```
-
-Sau đó chạy:
-
-```bash
-python -B -m aitool fuzz-output/findings.json
-```
+Config mẫu hiện tại dùng API tương thích `/chat/completions`.
 
 ## Dùng API Tương Thích OpenAI
 
@@ -167,7 +126,7 @@ Provider AI phải trả về JSON theo dạng:
 }
 ```
 
-Nếu AI trả sai JSON hoặc API lỗi, `aitool` dùng fallback nội bộ để vẫn sinh report.
+Nếu AI trả sai JSON hoặc API lỗi, `aitool` vẫn ghi report nhưng đánh dấu `confirmed=false` và nêu rõ AI analysis chưa thành công.
 
 ## Ý Nghĩa Các File
 
@@ -175,13 +134,11 @@ Nếu AI trả sai JSON hoặc API lỗi, `aitool` dùng fallback nội bộ đ�
 __main__.py       entrypoint khi chạy python -m aitool
 cli.py            parse tham số dòng lệnh và điều phối tool
 config.py         đọc ai.config.example.json và merge config mặc định
-ai_client.py      client chung, không phụ thuộc provider cụ thể
-providers.py      các provider: offline, ollama, openai_compatible
-analyzer.py       đọc findings.json và phân tích từng finding
+api_client.py     gọi API tương thích OpenAI /chat/completions
+analyzer.py       đọc findings.json, gọi AI và parse JSON kết quả
 prompts.py        prompt/schema gửi sang AI
-schemas.py        parse/validate JSON AI trả về, fallback khi lỗi
 redactor.py       ẩn dữ liệu nhạy cảm trước khi gửi AI
-reporter.py       xuất ai-report.json và ai-report.md
+reporter.py       xuất ai-report.json
 ```
 
 ## Thứ Tự Đọc Code
@@ -192,10 +149,8 @@ Nếu mới đọc source, nên đọc theo thứ tự:
 cli.py
 config.py
 analyzer.py
-ai_client.py
-providers.py
+api_client.py
 prompts.py
-schemas.py
 reporter.py
 ```
 

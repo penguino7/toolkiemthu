@@ -155,9 +155,7 @@ Output recon:
 
 ```text
 recon-output/inventory.json
-recon-output/inventory.md
 recon-output/params.txt
-recon-output/test_plan.md
 ```
 
 ## Chạy Fuzz
@@ -166,7 +164,7 @@ Fuzztool đọc file `inventory.json` sinh bởi recontool.
 
 Nếu inventory được tạo ở port cũ, dùng `--base-url` để ép fuzztool gọi đúng lab hiện tại. Khi chạy bằng menu, Base URL trong phần settings sẽ được truyền tự động cho fuzz.
 
-Trong menu, dùng `6. Cài đặt recon/fuzz` để chỉnh `Base URL`, `Inventory path`, `Fuzz output` và `Max requests`.
+Trong menu, dùng `6. Cài đặt recon/fuzz` để chỉnh `Base URL`, `Fuzz output`, `Findings path` và `Max requests`. Output recon luôn cố định ở `recon-output/`.
 
 Mặc định fuzztool không dùng proxy từ biến môi trường để tránh trường hợp Python đi qua proxy khác với `curl`. Nếu muốn cố tình đi qua Burp/ZAP, bật `use_environment_proxy` trong `fuzz.config.example.json`.
 
@@ -194,7 +192,6 @@ Output fuzz:
 
 ```text
 fuzz-output/findings.json
-fuzz-output/findings.md
 ```
 
 `findings` chỉ chứa kết quả đã có bằng chứng. Với XSS, tool dùng Playwright mở URL trong browser thật và chỉ ghi khi bắt được `alert()`/dialog chứa marker của payload. Payload chỉ được phản xạ trong HTML/JSON hoặc chỉ render ra DOM nhưng không thực thi sẽ không được ghi vào `findings`.
@@ -211,7 +208,6 @@ Output:
 
 ```text
 aitest-output/sessions.json
-aitest-output/sessions.md
 ```
 
 `aitest` không sửa `fuzz-output/findings.json`; đây là session log để đọc quá trình AI đề xuất payload và response từng vòng.
@@ -220,7 +216,7 @@ aitest-output/sessions.md
 
 AI tool là bước hậu xử lý, chỉ đọc `findings.json` và sinh report riêng. Nó không sửa `recontool` hoặc `fuzztool`.
 
-Chạy mặc định bằng chế độ `offline`:
+Chạy AI analysis bằng API đã cấu hình trong `ai.config.example.json`:
 
 ```bash
 python -B -m aitool fuzz-output/findings.json
@@ -230,7 +226,6 @@ Output:
 
 ```text
 ai-output/ai-report.json
-ai-output/ai-report.md
 ```
 
 Cấu hình AI nằm ở:
@@ -245,7 +240,7 @@ Config mẫu hiện đang dùng provider `openai_compatible` theo router API:
 "provider": {
   "name": "openai_compatible",
   "base_url": "https://ravavct.abc-tunnel.us/v1",
-  "model": "gc/gemini-3-pro-preview",
+  "model": "gh/gpt-5-mini",
   "api_key_env": "AI_API_KEY"
 }
 ```
@@ -274,15 +269,13 @@ export AI_API_KEY="your_router_api_key"
 │   └── trace_runner.py
 ├── aitool/
 │   ├── __main__.py
-│   ├── ai_client.py
+│   ├── api_client.py
 │   ├── analyzer.py
 │   ├── cli.py
 │   ├── config.py
 │   ├── prompts.py
-│   ├── providers.py
 │   ├── redactor.py
-│   ├── reporter.py
-│   └── schemas.py
+│   └── reporter.py
 ├── recontool/
 │   ├── __main__.py
 │   ├── RECON_FLOW.md
@@ -290,7 +283,6 @@ export AI_API_KEY="your_router_api_key"
 │   ├── cli.py
 │   ├── config.py
 │   ├── dedupe.py
-│   ├── enrich.py
 │   ├── exporters.py
 │   ├── http_client.py
 │   ├── models.py
@@ -328,7 +320,6 @@ dynamic crawl bằng Playwright
 auth profile
 manual seed / HAR import
 normalize EndpointRecord
-enrich candidate metadata
 dedupe endpoint
 export inventory
 ```
@@ -341,9 +332,8 @@ EndpointRecord        dữ liệu trung tâm của recon
 ReconNormalizer       chuẩn hóa URL, param, body, JSON
 StaticHtmlCrawler     crawl HTML tĩnh
 DynamicCrawler        bắt SPA/API request
-RecordEnricher        gắn candidate_tests
 EndpointDeduplicator  gom endpoint trùng
-ReconExporter         xuất inventory/test_plan
+ReconExporter         xuất inventory, markdown và params
 ```
 
 ## Cách Đọc Source Nhanh
@@ -357,7 +347,6 @@ recontool/cli.py
 recontool/crawlers/static_html.py
 recontool/crawlers/playwright_dynamic.py
 recontool/normalizer.py
-recontool/enrich.py
 recontool/dedupe.py
 recontool/exporters.py
 
@@ -392,7 +381,6 @@ Các hàm recon chính cũng theo kiểu tương tự:
 StaticHtmlCrawler.crawl()   lấy seed -> request page -> parse link/form -> đưa link mới vào queue
 DynamicCrawler.crawl()      mở browser -> login nếu có -> nghe response -> tạo EndpointRecord
 ReconNormalizer.make_record() normalize URL -> tạo record -> thêm params -> gắn evidence
-RecordEnricher.enrich_one() đọc evidence/param -> gắn candidate_tests
 EndpointDeduplicator.dedupe() tạo fingerprint -> merge record trùng
 ```
 
@@ -424,7 +412,7 @@ Fuzztool làm các việc:
 
 ```text
 đọc recon-output/inventory.json
-lọc target theo candidate_tests
+tạo FuzzTarget cho toàn bộ param trong scope
 mutate query/body/json param
 gửi request fuzz có giới hạn
 detector phân tích response
@@ -465,7 +453,6 @@ Phần dynamic crawler:
 
 ```json
 "dynamic": {
-  "enabled": false,
   "resource_types": ["document", "xhr", "fetch"],
   "auto_scroll": false,
   "click_selectors": [],
@@ -488,8 +475,7 @@ Phần safety:
 "safety": {
   "include_post": false,
   "max_requests": 800,
-  "delay_seconds": 0.05,
-  "dry_run": false
+  "delay_seconds": 0.05
 }
 ```
 
@@ -538,11 +524,9 @@ File chính:
 ai.config.example.json
 ```
 
-Các provider đang hỗ trợ:
+AI client hiện chỉ hỗ trợ API tương thích OpenAI:
 
 ```text
-offline              không gọi API, dùng fallback nội bộ
-ollama               gọi API local kiểu Ollama /api/chat
 openai_compatible    gọi API tương thích /chat/completions
 ```
 
@@ -550,10 +534,10 @@ AI tool chỉ nhận dữ liệu đã lọc từ `findings.json`. Mặc định 
 
 ## Kiểm Tra Nhanh
 
-Kiểm tra recon không cần target đang chạy:
+Kiểm tra CLI recon:
 
 ```bash
-python -B -m recontool --manual seeds.example.txt --no-static --out test-output
+python -B -m recontool --help
 ```
 
 Kiểm tra cú pháp:
@@ -577,7 +561,7 @@ Recontool:
 
 Fuzztool:
 
-- XSS finding là kết quả đã được browser xác nhận bằng dialog có marker, không còn là candidate phản xạ đơn thuần.
+- XSS finding là kết quả đã được browser xác nhận bằng dialog có marker, không còn là phản xạ đơn thuần.
 - SQLi finding vẫn nên được đọc cùng evidence vì boolean-based có thể nhiễu nếu target phản hồi không ổn định, còn union-based chỉ ghi khi marker xuất hiện trong response.
 - Stored XSS cần cấu hình `stored_check_paths`.
 - DOM XSS cần Playwright.

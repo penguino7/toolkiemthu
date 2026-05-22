@@ -7,8 +7,8 @@ import time
 from pathlib import Path
 
 from .analyzer import FindingAnalyzer
+from .api_client import AiApiClient, ChatMessage
 from .config import AiConfigLoader
-from .providers import ChatMessage, build_provider
 from .reporter import AiReportWriter
 
 
@@ -59,12 +59,11 @@ class AiApplication:
 
         print(f"[*] AI analyses: {len(analyses)}")
         print(f"[*] Wrote: {output_dir / 'ai-report.json'}")
-        print(f"[*] Wrote: {output_dir / 'ai-report.md'}")
         return 0
 
     def test_provider(self, config: dict, prompt: str) -> int:
         provider_config = config.get("provider", {})
-        provider_name = str(provider_config.get("name", "offline"))
+        provider_name = str(provider_config.get("name", "openai_compatible"))
         model = str(provider_config.get("model", "-"))
         base_url = str(provider_config.get("base_url", "-"))
         api_key_env = str(provider_config.get("api_key_env", ""))
@@ -81,10 +80,10 @@ class AiApplication:
         else:
             print("[*] API key  : not configured")
 
-        provider = build_provider(config)
+        api_client = AiApiClient(config)
         started = time.perf_counter()
         try:
-            content = provider.complete([ChatMessage(role="user", content=prompt)])
+            content = api_client.complete([ChatMessage(role="user", content=prompt)])
         except Exception as error:
             print(f"[!] Provider test failed: {error}")
             return 1
@@ -98,7 +97,7 @@ class AiApplication:
         print(f"[+] Provider test OK in {elapsed:.2f}s")
         print(f"[+] Content: {preview or '<empty>'}")
 
-        usage = getattr(provider, "last_usage", None)
+        usage = api_client.last_usage
         if usage:
             print(f"[+] Tokens : {self._format_token_usage(usage)}")
         return 0

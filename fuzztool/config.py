@@ -17,7 +17,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "include_post": False,
         "max_requests": 800,
         "delay_seconds": 0.05,
-        "dry_run": False,
         "skip_param_names": [
             "csrf",
             "csrf_token",

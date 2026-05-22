@@ -12,8 +12,7 @@
       "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     },
     "timeout_seconds": 60,
-    "temperature": 0.1,
-    "stream": false
+    "temperature": 0.1
   },
   "analysis": {
     "language": "vi",

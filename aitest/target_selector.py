@@ -13,7 +13,7 @@ class AiTestTargetSelector:
         self.config = config
 
     def select(self, inventory_path: str, max_targets: int, include_post: bool = False) -> List[FuzzTarget]:
-        targets = InventoryLoader(self.config).targets_for(inventory_path, {"xss", "sqli"})
+        targets = InventoryLoader(self.config).targets_for(inventory_path)
         if not include_post:
             targets = [target for target in targets if target.param_location == "query"]
 
@@ -32,8 +32,11 @@ class AiTestTargetSelector:
 
     def _priority(self, target: FuzzTarget) -> tuple[int, int, int, str]:
         name = target.param_name.lower()
-        tests = set(target.candidate_tests)
-        sqli_first = 0 if any(test.startswith("sqli") for test in tests) else 1
+        sqli_first = 0 if self._looks_like_sqli_target(target) else 1
         id_like = 0 if name == "id" or name.endswith("_id") else 1
         query_first = 0 if target.param_location == "query" else 1
         return sqli_first, id_like, query_first, target.key
+
+    def _looks_like_sqli_target(self, target: FuzzTarget) -> bool:
+        name = target.param_name.lower()
+        return target.type_hint in {"int", "float"} or name == "id" or name.endswith("_id")

@@ -19,7 +19,7 @@ Mặc định fuzztool:
 - `--xss` hoặc `--sqli` sẽ tự bật POST/body/json để quét đủ lab.
 - Không fuzz `password`, `csrf`, `token`, `session`.
 - Giới hạn số request bằng `max_requests`.
-- POST/body/json vẫn có thể bật thủ công bằng `--include-post` khi chạy scanner riêng lẻ.
+- POST/body/json vẫn có thể bật thủ công bằng `--include-post` khi chạy trực tiếp bằng CLI.
 - XSS dùng payload proof-of-execution như `<script>alert("FUZZXSS_xxxxxxxx")</script>`.
 - XSS chỉ được ghi vào `findings` khi Playwright bắt được dialog chứa marker, không ghi các payload chỉ phản xạ/render nhưng chưa thực thi.
 - `--xss` chạy reflected XSS, DOM XSS và Stored XSS.
@@ -59,7 +59,6 @@ Chạy đầy đủ cả XSS và SQLi: chọn `4. Chạy fuzz XSS + SQLi` trong 
 
 ```text
 fuzz-output/findings.json
-fuzz-output/findings.md
 ```
 
 `findings` là kết quả đã có bằng chứng. Với XSS, bằng chứng hợp lệ là browser thật chạy payload và tạo `alert()`/dialog có marker tương ứng. Nếu payload chỉ xuất hiện trong HTML/JSON/DOM nhưng không thực thi JavaScript thì tool bỏ qua, không ghi vào `findings`.

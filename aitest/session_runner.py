@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, List
 from uuid import uuid4
 
-from aitool.providers import ChatMessage, build_provider
+from aitool.api_client import AiApiClient, ChatMessage
 from fuzztool.http_client import FuzzHttpClient, RequestBudgetExceeded
 from fuzztool.models import FuzzTarget
 from fuzztool.mutator import RequestMutator
@@ -31,7 +31,7 @@ class AiIterativeSessionRunner:
         self.tool_config = tool_config
         self.ai_config = ai_config
         self.verbose = verbose
-        self.provider = build_provider(ai_config)
+        self.ai_api = AiApiClient(ai_config)
         self.mutator = RequestMutator()
         self.guard = PayloadGuard()
         self.summarizer = ResponseSummarizer()
@@ -188,7 +188,7 @@ class AiIterativeSessionRunner:
         self._log_ai_input(target, baseline, previous_rounds)
         try:
             self._log(f"AI-CALL  provider={self._provider_label()}")
-            raw = self.provider.complete(
+            raw = self.ai_api.complete(
                 [
                     ChatMessage(role="system", content=self._system_prompt()),
                     ChatMessage(role="user", content=prompt),
@@ -288,7 +288,7 @@ class AiIterativeSessionRunner:
         round_index = len(previous_rounds) + 1
         is_numeric = target.type_hint in {"int", "float"}
 
-        if any("sqli" in test for test in target.candidate_tests):
+        if self._looks_like_sqli_target(target):
             if round_index == 1:
                 payload = f"{sample}'"
                 attack_type = "sqli_error"
@@ -305,6 +305,10 @@ class AiIterativeSessionRunner:
         payload = f'"><svg/onload=alert("{marker}")>'
         return AiPayloadDecision(payload, "xss_reflection", reason, "marker reflected in HTML response", source="fallback")
 
+    def _looks_like_sqli_target(self, target: FuzzTarget) -> bool:
+        name = target.param_name.lower()
+        return target.type_hint in {"int", "float"} or name == "id" or name.endswith("_id")
+
     def _target_dict(self, target: FuzzTarget) -> dict:
         return {
             "method": target.method,
@@ -315,7 +319,6 @@ class AiIterativeSessionRunner:
             "location": target.param_location,
             "type_hint": target.type_hint,
             "sample_value": target.sample_value,
-            "candidate_tests": target.candidate_tests,
         }
 
     def _log(self, message: str) -> None:
@@ -345,7 +348,7 @@ class AiIterativeSessionRunner:
 
     def _provider_label(self) -> str:
         provider = self.ai_config.get("provider", {})
-        name = provider.get("name", "offline")
+        name = provider.get("name", "openai_compatible")
         model = provider.get("model", "")
         return f"{name}/{model}" if model else str(name)
 
