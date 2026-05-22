@@ -8,7 +8,7 @@
 bash run_tool.sh
 ```
 
-Trong menu, chọn `2` để chạy recon dynamic, rồi chọn `5` để fuzz cả XSS và SQLi.
+Trong menu, chọn `1` để chạy recon, rồi chọn `4` để fuzz cả XSS và SQLi.
 
 `Base URL` trong menu giúp fuzztool rewrite host/port từ inventory sang lab đang chạy hiện tại. Mặc định fuzztool không dùng proxy từ biến môi trường; muốn đi qua proxy thì bật `use_environment_proxy` trong `fuzz.config.example.json`.
 
@@ -19,7 +19,6 @@ Mặc định fuzztool:
 - `--xss` hoặc `--sqli` sẽ tự bật POST/body/json để quét đủ lab.
 - Không fuzz `password`, `csrf`, `token`, `session`.
 - Giới hạn số request bằng `max_requests`.
-- Có `--dry-run` để liệt kê target mà không gửi request.
 - POST/body/json vẫn có thể bật thủ công bằng `--include-post` khi chạy scanner riêng lẻ.
 - XSS dùng payload proof-of-execution như `<script>alert("FUZZXSS_xxxxxxxx")</script>`.
 - XSS chỉ được ghi vào `findings` khi Playwright bắt được dialog chứa marker, không ghi các payload chỉ phản xạ/render nhưng chưa thực thi.
@@ -28,9 +27,7 @@ Mặc định fuzztool:
 
 ## Lệnh Mẫu
 
-Chỉ xem target, không gửi request: chọn `6. Dry-run fuzz all` trong menu.
-
-Chạy đủ nhóm XSS, gồm reflected XSS, DOM XSS và Stored XSS: chọn `3. Run XSS fuzz` trong menu.
+Chạy đủ nhóm XSS, gồm reflected XSS, DOM XSS và Stored XSS: chọn `2. Chạy fuzz XSS` trong menu.
 
 Stored XSS dùng `stored_check_paths` trong `fuzz.config.example.json`, vì tool phải biết sau khi submit payload thì nên mở URL nào để xác minh payload đã được lưu và thực thi. File mẫu đã để sẵn path cho lab local, khi test web khác thì sửa lại danh sách này.
 
@@ -46,7 +43,7 @@ Payload XSS mặc định là payload thật có marker bên trong:
 <img src=x onerror=alert("FUZZXSS_xxxxxxxx")>
 ```
 
-Chạy đủ nhóm SQLi, gồm error-based, boolean-based và union-based: chọn `4. Run SQLi fuzz` trong menu.
+Chạy đủ nhóm SQLi, gồm error-based, boolean-based và union-based: chọn `3. Chạy fuzz SQLi` trong menu.
 
 Payload SQLi được đọc từ:
 
@@ -56,7 +53,7 @@ fuzztool/payloads/sqli.txt
 
 File này chia payload theo nhóm `error`, `boolean` và `union`. Có thể thêm payload mới bằng template `{sample}`; riêng union-based dùng `{columns}` do scanner tự sinh.
 
-Chạy đầy đủ cả XSS và SQLi: chọn `5. Run XSS + SQLi fuzz` trong menu.
+Chạy đầy đủ cả XSS và SQLi: chọn `4. Chạy fuzz XSS + SQLi` trong menu.
 
 ## Output
 

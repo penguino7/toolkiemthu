@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rounds", type=int, default=4, help="Số vòng AI cho mỗi target")
     parser.add_argument("--include-post", action="store_true", help="Cho phép test body/json POST")
     parser.add_argument("--max-requests", type=int, default=80, help="Giới hạn request")
+    parser.add_argument("--quiet", action="store_true", help="Không in log chi tiết khi chạy")
     return parser
 
 
@@ -38,7 +39,10 @@ class AiTestApplication:
         )
         print(f"[*] AI test targets: {len(targets)}")
 
-        sessions = AiIterativeSessionRunner(tool_config, ai_config).run_targets(targets, rounds=args.rounds)
+        sessions = AiIterativeSessionRunner(tool_config, ai_config, verbose=not args.quiet).run_targets(
+            targets,
+            rounds=args.rounds,
+        )
         AiTestReporter().export(sessions, args.out)
 
         print(f"[*] Sessions: {len(sessions)}")

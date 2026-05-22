@@ -22,9 +22,41 @@ Chạy mẫu:
 bash run_tool.sh
 ```
 
-Sau đó chọn `14. Run AI iterative test`.
+Sau đó chọn `9. Chạy AI iterative test`.
 
-Muốn đổi số endpoint hoặc số vòng test thì vào `12. AI settings`.
+Muốn đổi số endpoint hoặc số vòng test thì vào `7. Cài đặt AI`.
+
+Khi chạy, terminal sẽ in log realtime:
+
+```text
+========================================================================
+TARGET   1/5
+POINT    GET /api/spa/news.php query:id
+MARKER   AITEST_xxxxxxxx
+========================================================================
+
+------------------------------------------------------------------------
+BASELINE REQUEST
+------------------------------------------------------------------------
+REQUEST  GET http://127.0.0.1:12001/api/spa/news.php?id=1
+RESPONSE status=200 time=0.012s size=49B
+------------------------------------------------------------------------
+
+========================================================================
+ROUND    1/4
+STEP     Asking AI for next payload
+========================================================================
+PAYLOAD  1'
+------------------------------------------------------------------------
+ATTACK   REQUEST
+------------------------------------------------------------------------
+REQUEST  GET http://127.0.0.1:12001/api/spa/news.php?id=1%27
+RESPONSE status=200 time=0.014s size=2.1KB
+SIGNAL   confirmed=False sql_error=- marker_in_data=False matched=- ignored=-
+------------------------------------------------------------------------
+```
+
+Nếu muốn tắt log chi tiết khi chạy trực tiếp bằng module thì thêm `--quiet`.
 
 Output:
 

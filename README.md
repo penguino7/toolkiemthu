@@ -14,7 +14,7 @@ Luồng sử dụng chính:
 recontool -> recon-output/inventory.json -> fuzztool -> fuzz-output/findings.json
 ```
 
-`recontool` chỉ làm recon, không gửi giá trị kiểm thử. `fuzztool` mới là phần gửi payload kiểm thử, có `--dry-run`, giới hạn scope, giới hạn request và mặc định không fuzz POST/body/json nếu chưa bật `--include-post`.
+`recontool` chỉ làm recon, không gửi giá trị kiểm thử. `fuzztool` mới là phần gửi payload kiểm thử, có giới hạn scope, giới hạn request và mặc định không fuzz POST/body/json nếu chưa bật `--include-post`.
 
 `aitest` là module thử nghiệm riêng: AI đề xuất payload theo từng vòng, tool kiểm tra an toàn rồi mới gửi request. Kết quả ghi vào `aitest-output/`, không làm thay đổi finding chính.
 
@@ -51,20 +51,15 @@ bash run_tool.sh
 Menu sẽ hiện các lựa chọn bằng số:
 
 ```text
-1. Chạy recon tĩnh
-2. Chạy recon tĩnh + dynamic Playwright
-3. Chạy fuzz XSS
-4. Chạy fuzz SQLi
-5. Chạy fuzz XSS + SQLi
-6. Dry-run fuzz all
-7. Xem tóm tắt inventory
-8. Xem tóm tắt findings
-9. Chạy AI analysis
-10. Xem tóm tắt AI report
-11. Cài đặt recon/fuzz
-12. Cài đặt AI
-13. Kiểm tra AI provider/API key
-14. Chạy AI iterative test
+1. Chạy recon
+2. Chạy fuzz XSS
+3. Chạy fuzz SQLi
+4. Chạy fuzz XSS + SQLi
+5. Chạy AI analysis
+6. Cài đặt recon/fuzz
+7. Cài đặt AI
+8. Kiểm tra AI provider/API key
+9. Chạy AI iterative test
 0. Thoát
 ```
 
@@ -94,9 +89,9 @@ Giả sử lab chạy tại:
 http://127.0.0.1:12001
 ```
 
-Chạy static recon: mở menu bằng `bash run_tool.sh`, sau đó chọn `1`.
+Chạy recon: mở menu bằng `bash run_tool.sh`, sau đó chọn `1`.
 
-Chạy cả static và dynamic recon: mở menu bằng `bash run_tool.sh`, sau đó chọn `2`.
+Lựa chọn này chạy recon đầy đủ gồm static crawler và dynamic Playwright crawler.
 
 Nếu chưa cài Playwright, cài trước bằng:
 
@@ -119,13 +114,11 @@ Fuzztool đọc file `inventory.json` sinh bởi recontool.
 
 Nếu inventory được tạo ở port cũ, dùng `--base-url` để ép fuzztool gọi đúng lab hiện tại. Khi chạy bằng menu, Base URL trong phần settings sẽ được truyền tự động cho fuzz.
 
-Trong menu, dùng `11. Cài đặt recon/fuzz` để chỉnh `Base URL`, `Inventory path`, `Fuzz output` và `Max requests`.
+Trong menu, dùng `6. Cài đặt recon/fuzz` để chỉnh `Base URL`, `Inventory path`, `Fuzz output` và `Max requests`.
 
 Mặc định fuzztool không dùng proxy từ biến môi trường để tránh trường hợp Python đi qua proxy khác với `curl`. Nếu muốn cố tình đi qua Burp/ZAP, bật `use_environment_proxy` trong `fuzz.config.example.json`.
 
-Xem target trước, không gửi request: chọn `6. Dry-run fuzz all`.
-
-Chạy XSS: chọn `3. Chạy fuzz XSS`.
+Chạy XSS: chọn `2. Chạy fuzz XSS`.
 
 Lệnh trên chạy đủ reflected XSS, DOM XSS và Stored XSS. Tool tự bật POST/body/json cho nhóm XSS vì Stored XSS cần gửi dữ liệu.
 
@@ -135,15 +128,15 @@ Stored XSS dùng `stored_check_paths` trong `fuzz.config.example.json` để bi�
 "stored_check_paths": ["/news.php?id=1", "/spa/comments/1", "/spa/logs"]
 ```
 
-Chạy SQLi: chọn `4. Chạy fuzz SQLi`.
+Chạy SQLi: chọn `3. Chạy fuzz SQLi`.
 
 Payload SQLi nằm trong `fuzztool/payloads/sqli.txt`, chia theo nhóm error-based, boolean-based và union-based. Scanner sẽ tự thay `{sample}` bằng giá trị mẫu của param; riêng union-based sẽ tự sinh `{columns}` để thử số cột UNION SELECT.
 
-Chạy cả XSS và SQLi: chọn `5. Chạy fuzz XSS + SQLi`.
+Chạy cả XSS và SQLi: chọn `4. Chạy fuzz XSS + SQLi`.
 
 Đây là lệnh fuzz đầy đủ cho lab: reflected XSS, DOM XSS, Stored XSS, SQLi error-based, SQLi boolean-based và SQLi union-based. `--include-post` vẫn còn được hỗ trợ nhưng không cần thêm khi đã dùng `--xss` hoặc `--sqli`.
 
-Giới hạn số request: vào `11. Cài đặt recon/fuzz`, nhập giá trị ở dòng `Max requests`, rồi chạy lại lựa chọn fuzz cần dùng.
+Giới hạn số request: vào `6. Cài đặt recon/fuzz`, nhập giá trị ở dòng `Max requests`, rồi chạy lại lựa chọn fuzz cần dùng.
 
 Output fuzz:
 
@@ -158,9 +151,9 @@ fuzz-output/findings.md
 
 Module này chạy riêng để AI gợi ý payload theo nhiều vòng. Tool vẫn kiểm soát payload, scope và request.
 
-Trong menu, chọn `14. Chạy AI iterative test`.
+Trong menu, chọn `9. Chạy AI iterative test`.
 
-Muốn đổi số endpoint hoặc số vòng test thì vào `12. Cài đặt AI`, chỉnh `AI test max targets` và `AI test rounds`.
+Muốn đổi số endpoint hoặc số vòng test thì vào `7. Cài đặt AI`, chỉnh `AI test max targets` và `AI test rounds`.
 
 Output:
 
@@ -509,12 +502,6 @@ Kiểm tra recon không cần target đang chạy:
 
 ```bash
 python -B -m recontool --manual seeds.example.txt --no-static --out test-output
-```
-
-Kiểm tra fuzz không gửi request:
-
-```bash
-python -B -m fuzztool test-output/inventory.json --xss --sqli --dry-run --out test-fuzz-output
 ```
 
 Kiểm tra cú pháp:
