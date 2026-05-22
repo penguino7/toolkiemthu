@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 from uuid import uuid4
 
 from .http_client import FuzzHttpClient, RequestBudgetExceeded
@@ -39,6 +40,31 @@ class SqliScanner:
         "sqliteexception",
         "syntax error",
     ]
+    DEBUG_JSON_KEYS = {
+        "sql",
+        "query",
+        "debug",
+        "request",
+        "payload",
+        "raw",
+        "raw_sql",
+        "trace",
+        "stack",
+        "error",
+        "errors",
+    }
+    TOP_LEVEL_ECHO_KEYS = {
+        "id",
+        "q",
+        "keyword",
+        "author",
+        "sort",
+        "page",
+        "news_id",
+        "category_id",
+        "input",
+        "value",
+    }
 
     def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
         self.client = client
@@ -158,7 +184,11 @@ class SqliScanner:
                 if response.error:
                     continue
 
-                marker_evidence = self._marker_evidence(response.text, marker)
+                marker_evidence = self._marker_evidence(
+                    response.text,
+                    marker,
+                    response.headers.get("content-type", ""),
+                )
                 if not marker_evidence:
                     continue
 
@@ -175,6 +205,8 @@ class SqliScanner:
                         details={
                             "marker": marker,
                             "column_count": column_count,
+                            "matched_paths": marker_evidence.get("matched_paths", []),
+                            "ignored_paths": marker_evidence.get("ignored_paths", []),
                             "response_excerpt": marker_evidence.get("response_excerpt", ""),
                             "response_content_type": response.headers.get("content-type", ""),
                             "elapsed_seconds": round(response.elapsed_seconds, 4),
@@ -268,7 +300,78 @@ class SqliScanner:
         minimum_delta = max(20, int(bigger_response_size * 0.15))
         return abs(len(true_text) - len(false_text)) > minimum_delta
 
-    def _marker_evidence(self, text: str, marker: str, max_chars: int = 500) -> dict:
+    def _marker_evidence(self, text: str, marker: str, content_type: str = "", max_chars: int = 500) -> dict:
+        json_evidence = self._json_marker_evidence(text, marker)
+        if json_evidence:
+            return json_evidence
+
+        if "json" in (content_type or "").lower():
+            return {}
+
+        return self._text_marker_evidence(text, marker, max_chars)
+
+    def _json_marker_evidence(self, text: str, marker: str) -> dict:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return {}
+
+        matched_paths: List[str] = []
+        ignored_paths: List[str] = []
+        matched_values: List[str] = []
+
+        self._find_marker_in_json(data, marker, [], matched_paths, ignored_paths, matched_values)
+        if not matched_paths:
+            return {}
+
+        return {
+            "marker": marker,
+            "matched_paths": matched_paths,
+            "ignored_paths": ignored_paths,
+            "response_excerpt": self._short_json_value(matched_values[0]),
+        }
+
+    def _find_marker_in_json(
+        self,
+        value: Any,
+        marker: str,
+        path: List[str],
+        matched_paths: List[str],
+        ignored_paths: List[str],
+        matched_values: List[str],
+    ) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                self._find_marker_in_json(child, marker, [*path, str(key)], matched_paths, ignored_paths, matched_values)
+            return
+
+        if isinstance(value, list):
+            for index, child in enumerate(value):
+                self._find_marker_in_json(child, marker, [*path, str(index)], matched_paths, ignored_paths, matched_values)
+            return
+
+        if marker not in str(value):
+            return
+
+        path_text = ".".join(path) if path else "$"
+        if self._is_ignored_marker_path(path):
+            ignored_paths.append(path_text)
+            return
+
+        matched_paths.append(path_text)
+        matched_values.append(str(value))
+
+    def _is_ignored_marker_path(self, path: List[str]) -> bool:
+        lowered_path = [item.lower() for item in path]
+        if any(item in self.DEBUG_JSON_KEYS for item in lowered_path):
+            return True
+        return len(lowered_path) == 1 and lowered_path[0] in self.TOP_LEVEL_ECHO_KEYS
+
+    def _short_json_value(self, value: str, max_chars: int = 500) -> str:
+        compacted = self._compact_text(value)
+        return compacted[:max_chars]
+
+    def _text_marker_evidence(self, text: str, marker: str, max_chars: int = 500) -> dict:
         cleaned = self._compact_text(text or "")
         marker_index = cleaned.find(marker)
         if marker_index < 0:
@@ -278,6 +381,8 @@ class SqliScanner:
         excerpt_end = min(len(cleaned), marker_index + len(marker) + max_chars)
         return {
             "marker": marker,
+            "matched_paths": [],
+            "ignored_paths": [],
             "response_excerpt": cleaned[excerpt_start:excerpt_end],
         }
 
