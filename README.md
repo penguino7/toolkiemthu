@@ -20,24 +20,76 @@ recontool -> recon-output/inventory.json -> fuzztool -> fuzz-output/findings.jso
 
 ## Cài Đặt Trên Kali/Linux
 
+Sau khi clone repo về Kali:
+
 ```bash
+git clone <URL_REPO_TOOLKIEMTHU>
+cd toolkiemthu
+
 sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip
+
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-Nếu dùng dynamic crawler hoặc DOM XSS scanner:
+Kiểm tra nhanh thư viện Python đã cài đúng vào `.venv`:
+
+```bash
+python -c "import requests, playwright; print('Python libraries OK')"
+```
+
+Vì menu `Chạy recon` dùng Playwright dynamic crawler, cần cài thêm Chromium cho Playwright:
 
 ```bash
 python -m playwright install chromium
 ```
 
-Nếu Kali thiếu thư viện hệ thống cho Chromium:
+Nếu Kali báo thiếu thư viện hệ thống cho Chromium:
 
 ```bash
-python -m playwright install-deps chromium
+sudo .venv/bin/python -m playwright install-deps chromium
+python -m playwright install chromium
+```
+
+Sau khi cài xong, chạy tool bằng:
+
+```bash
+bash run_tool.sh
+```
+
+### Lỗi Thường Gặp Khi Thiếu Thư Viện
+
+Nếu gặp lỗi:
+
+```text
+ModuleNotFoundError: No module named 'requests'
+ModuleNotFoundError: No module named 'playwright'
+```
+
+Chạy lại:
+
+```bash
+cd toolkiemthu
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Nếu gặp lỗi Playwright kiểu thiếu browser Chromium:
+
+```text
+Executable doesn't exist
+Please run: playwright install
+```
+
+Chạy:
+
+```bash
+source .venv/bin/activate
+python -m playwright install chromium
 ```
 
 ## Chạy Bằng Menu CLI
