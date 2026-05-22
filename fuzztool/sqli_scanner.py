@@ -203,13 +203,31 @@ class SqliScanner:
                         request_url=response.url,
                         status=response.status,
                         details={
+                            "analysis_summary": (
+                                "Union-based SQLi confirmed because a scanner-generated marker was returned "
+                                "inside application data fields, not only inside debug SQL or echoed input."
+                            ),
+                            "confirmation_reason": "marker_found_in_non_debug_json_fields",
                             "marker": marker,
                             "column_count": column_count,
                             "matched_paths": marker_evidence.get("matched_paths", []),
                             "ignored_paths": marker_evidence.get("ignored_paths", []),
+                            "ignored_reason": (
+                                "Paths such as sql/debug/request and top-level echoed input fields are ignored "
+                                "to reduce false positives."
+                            ),
                             "response_excerpt": marker_evidence.get("response_excerpt", ""),
                             "response_content_type": response.headers.get("content-type", ""),
                             "elapsed_seconds": round(response.elapsed_seconds, 4),
+                            "test_more_suggestions": [
+                                "Use ORDER BY to confirm the SELECT column count.",
+                                "Move the marker across individual UNION columns to identify which columns are rendered.",
+                                "After authorization, test whether database metadata or low-risk proof values can be returned.",
+                            ],
+                            "remediation_hint": (
+                                "Use parameterized queries/prepared statements, validate numeric parameters as integers, "
+                                "and remove SQL/debug output from API responses."
+                            ),
                         },
                     )
                 ]

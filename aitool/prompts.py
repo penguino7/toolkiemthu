@@ -16,7 +16,7 @@ def build_finding_prompt(finding: Dict[str, Any], language: str = "vi") -> str:
     expected_schema = {
         "confirmed": True,
         "vulnerability_type": "xss|sqli|unknown",
-        "subtype": "reflected|stored|dom|error_based|boolean_based|time_based|unknown",
+        "subtype": "reflected|stored|dom|error_based|boolean_based|union_based|unknown",
         "cwe": "CWE-79|CWE-89|null",
         "possible_cve": None,
         "severity": "low|medium|high|critical",
@@ -33,6 +33,7 @@ def build_finding_prompt(finding: Dict[str, Any], language: str = "vi") -> str:
             "Nếu evidence chưa đủ, đặt confirmed=false và giảm confidence.",
             "Nếu là XSS thì ưu tiên CWE-79.",
             "Nếu là SQL injection thì ưu tiên CWE-89.",
+            "Với union_based SQLi, ưu tiên matched_paths/ignored_paths để đánh giá marker có nằm trong dữ liệu thật hay chỉ nằm trong debug/echo.",
             "possible_cve chỉ điền khi dữ liệu có nêu rõ sản phẩm và phiên bản cụ thể.",
             "Không tạo CVE giả.",
         ],
@@ -40,4 +41,3 @@ def build_finding_prompt(finding: Dict[str, Any], language: str = "vi") -> str:
         "finding": finding,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2)
-
