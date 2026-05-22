@@ -84,6 +84,12 @@ else
   fi
 fi
 
+if ! "$PYTHON_BIN" -c "import requests" >/dev/null 2>&1; then
+  echo "[*] Installing required Python package: requests"
+  "$PYTHON_BIN" -m pip install --upgrade pip
+  "$PYTHON_BIN" -m pip install "requests>=2.31.0"
+fi
+
 if [[ "$INSTALL_PLAYWRIGHT" -eq 1 ]]; then
   echo "[*] Installing optional Playwright dependency"
   "$PYTHON_BIN" -m pip install --upgrade pip

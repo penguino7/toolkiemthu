@@ -1,3 +1,5 @@
-# Core tool uses Python standard library only.
+# Core dependency for recon HTTP requests:
+requests>=2.31.0
+
 # Optional dynamic crawler:
 playwright>=1.40.0
