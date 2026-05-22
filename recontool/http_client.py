@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from http.cookiejar import CookieJar
 from typing import Dict
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import HTTPCookieProcessor, Request, build_opener
+import requests
 
 
 @dataclass
@@ -19,7 +16,7 @@ class HttpResult:
 
 
 class ResponseDecoder:
-    """Giải mã response body thành text nếu content-type phù hợp."""
+    """Quyết định response nào nên đọc body dạng text."""
 
     TEXT_CONTENT_MARKERS = ["text/", "html", "json", "javascript", "xml", "x-www-form-urlencoded"]
 
@@ -27,65 +24,58 @@ class ResponseDecoder:
         lowered = (content_type or "").lower()
         return any(marker in lowered for marker in self.TEXT_CONTENT_MARKERS)
 
-    def decode(self, body: bytes, content_type: str) -> str:
-        charset = "utf-8"
-        if "charset=" in content_type:
-            charset = content_type.split("charset=", 1)[1].split(";", 1)[0].strip()
-        return body.decode(charset, errors="replace")
-
 
 @dataclass
 class HttpSession:
-    """HTTP client có cookie jar.
-
-    Static crawler và form login dùng class này để giữ session giống browser cơ
-    bản. Tool vẫn chỉ recon: nó request các URL đã biết để đọc HTML/metadata.
-    """
+    """HTTP client dùng requests.Session để giữ cookie khi crawl."""
 
     headers: Dict[str, str] = field(default_factory=dict)
     timeout: int = 10
-    cookie_jar: CookieJar = field(default_factory=CookieJar)
     decoder: ResponseDecoder = field(default_factory=ResponseDecoder)
+    session: requests.Session = field(init=False)
 
     def __post_init__(self) -> None:
-        self.opener = build_opener(HTTPCookieProcessor(self.cookie_jar))
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
 
     def request(
         self,
         url: str,
         method: str = "GET",
-        body: str | bytes | None = None,
+        body: str | bytes | dict | None = None,
         headers: Dict[str, str] | None = None,
     ) -> HttpResult:
-        final_headers = dict(self.headers)
-        if headers:
-            final_headers.update(headers)
-
-        # urllib cần bytes cho request body.
-        data = None
-        if body is not None:
-            data = body if isinstance(body, bytes) else body.encode("utf-8")
-            final_headers.setdefault("Content-Type", "application/x-www-form-urlencoded")
-
-        request = Request(url, data=data, headers=final_headers, method=method.upper())
         try:
-            with self.opener.open(request, timeout=self.timeout) as response:
-                return self._build_result(response.geturl(), response.status, response.headers.items(), response.read())
-        except HTTPError as error:
-            # HTTP 404/500 vẫn là response hợp lệ cho recon, nên trả về HttpResult.
-            return self._build_result(error.geturl(), error.code, error.headers.items(), error.read())
-        except URLError as error:
+            with self.session.request(
+                method=method.upper(),
+                url=url,
+                data=body,
+                headers=headers,
+                timeout=self.timeout,
+                stream=True,
+                allow_redirects=True,
+            ) as response:
+                headers_dict = {key.lower(): value for key, value in response.headers.items()}
+                content_type = headers_dict.get("content-type", "")
+
+                text = ""
+                if self.decoder.should_decode(content_type):
+                    if "charset=" not in content_type.lower():
+                        response.encoding = "utf-8"
+                    text = response.text
+
+                return HttpResult(
+                    url=response.url,
+                    status=response.status_code,
+                    headers=headers_dict,
+                    text=text,
+                )
+
+        except requests.exceptions.RequestException as error:
             raise RuntimeError(f"Request failed for {url}: {error}") from error
 
     def get(self, url: str) -> HttpResult:
         return self.request(url, "GET")
 
     def post_form(self, url: str, data: Dict[str, str]) -> HttpResult:
-        body = urlencode(data)
-        return self.request(url, "POST", body=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
-
-    def _build_result(self, url: str, status: int, headers, raw_body: bytes) -> HttpResult:
-        headers_dict = {key.lower(): value for key, value in headers}
-        content_type = headers_dict.get("content-type", "")
-        text = self.decoder.decode(raw_body, content_type) if self.decoder.should_decode(content_type) else ""
-        return HttpResult(url, status, headers_dict, text)
+        return self.request(url, "POST", body=data)

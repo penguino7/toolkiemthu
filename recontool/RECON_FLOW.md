@@ -284,10 +284,11 @@ Biểu đồ này giữ tên class/method bằng tiếng Anh vì chúng trùng v
 classDiagram
     class ReconApplication {
         +run(argv)
-        -_apply_cli_overrides(config, args)
-        -_collect_records(config, args)
-        -_run_crawlers(config, args)
-        -_run_importers(config)
+        -_load_config(args)
+        -_collect_records(config, auth_profile_names)
+        -_crawl(config, auth_profile_names)
+        -_import(config)
+        -_enrich_and_dedupe(records, config)
     }
 
     class ConfigLoader {

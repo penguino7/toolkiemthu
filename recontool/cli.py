@@ -1,8 +1,7 @@
-from __future__ import annotations
+from __future__ import annotations 
 
 import argparse
 from pathlib import Path
-from typing import List
 
 from .auth import AuthManager
 from .config import ConfigLoader
@@ -16,150 +15,148 @@ from .importers.manual_seed import ManualSeedImporter
 from .models import EndpointRecord
 
 
-class CliArgumentParser:
-    """Tạo argparse parser cho command line."""
+def build_parser() -> argparse.ArgumentParser:
+    """Tạo parser dòng lệnh cho recontool với các nhóm logic rõ ràng."""
+    parser = argparse.ArgumentParser(description="Công cụ recon sinh inventory endpoint")
 
-    def build(self) -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(description="Generic recon inventory tool")
-        parser.add_argument("-c", "--config", help="Đường dẫn file config JSON")
-        parser.add_argument("-o", "--out", help="Thư mục output")
-        parser.add_argument("--base-url", help="Override base_url")
-        parser.add_argument("--seed", action="append", default=[], help="Thêm seed URL/path")
-        parser.add_argument("--har", action="append", default=[], help="Import HAR file")
-        parser.add_argument("--manual", action="append", default=[], help="Import manual seed file")
-        parser.add_argument("--no-static", action="store_true", help="Tắt static crawler")
-        parser.add_argument("--dynamic", action="store_true", help="Bật Playwright dynamic crawler")
-        parser.add_argument("--auth-profile", action="append", default=[], help="Chỉ crawl auth profile có tên tương ứng")
-        parser.add_argument("--dedupe-mode", choices=["strict", "smart"], help="Chế độ dedupe")
-        return parser
+    # Nhóm 1: Cấu hình cơ bản (I/O)
+    io_group = parser.add_argument_group("Cấu hình Đầu vào / Đầu ra")
+    io_group.add_argument("-c", "--config", help="Đường dẫn file config JSON")
+    io_group.add_argument("-o", "--out", help="Thư mục output")
+    io_group.add_argument("--base-url", help="Ghi đè base_url trong config")
+
+    # Nhóm 2: Nguồn dữ liệu (Seeds & Imports)
+    seed_group = parser.add_argument_group("Nguồn dữ liệu bổ sung")
+    seed_group.add_argument("--seed", action="append", default=[], help="Thêm seed URL/path")
+    seed_group.add_argument("--har", action="append", default=[], help="Import file HAR")
+    seed_group.add_argument("--manual", action="append", default=[], help="Import file manual seed")
+
+    # Nhóm 3: Cấu hình Crawler & Xử lý
+    crawl_group = parser.add_argument_group("Cấu hình Thu thập & Xử lý")
+    crawl_group.add_argument("--no-static", action="store_true", help="Tắt static crawler")
+    crawl_group.add_argument("--dynamic", action="store_true", help="Bật Playwright dynamic crawler")
+    crawl_group.add_argument("--auth-profile", action="append", default=[], help="Chỉ crawl auth profile được chọn")
+    crawl_group.add_argument("--dedupe-mode", choices=["strict", "smart"], help="Chế độ lọc trùng")
+
+    return parser
 
 
 class ReconApplication:
-    """Điều phối toàn bộ pipeline recon.
+    """Điều phối luồng recon: đọc config -> crawl/import -> lọc trùng -> xuất file."""
 
-    CLI chỉ là lớp mỏng. Mọi bước chính được đặt trong class này để luồng chạy
-    dễ đọc theo thứ tự: load config -> crawl/import -> enrich -> dedupe -> export.
-    """
-
-    def __init__(
-        self,
-        config_loader: ConfigLoader | None = None,
-        parser_builder: CliArgumentParser | None = None,
-        enricher: RecordEnricher | None = None,
-        exporter: ReconExporter | None = None,
-    ) -> None:
-        self.config_loader = config_loader or ConfigLoader()
-        self.parser_builder = parser_builder or CliArgumentParser()
-        self.enricher = enricher or RecordEnricher()
-        self.exporter = exporter or ReconExporter()
+    def __init__(self) -> None:
+        self.config_loader = ConfigLoader()
+        self.enricher = RecordEnricher()
+        self.exporter = ReconExporter()
 
     def run(self, argv=None) -> int:
-        # Luồng chính: đọc cấu hình -> thu thập -> làm giàu/lọc trùng -> xuất file.
-        args = self._parse_args(argv)
+        args = build_parser().parse_args(argv)
         config = self._load_config(args)
-        raw_records = self._discover_records(config, args)
-        final_records = self._prepare_records(raw_records, config)
-        output_dir = self._export_records(final_records, config)
+
+        records = self._collect_records(config, args.auth_profile)
+        records = self._enrich_and_dedupe(records, config)
+        output_dir = self._export(records, config)
+
         self._print_outputs(output_dir)
         return 0
 
-    def _parse_args(self, argv=None) -> argparse.Namespace:
-        return self.parser_builder.build().parse_args(argv)
-
     def _load_config(self, args: argparse.Namespace) -> dict:
         config = self.config_loader.load(args.config)
-        self._apply_cli_overrides(config, args)
-        return config
 
-    def _apply_cli_overrides(self, config: dict, args: argparse.Namespace) -> None:
-        if args.base_url:
-            config["base_url"] = args.base_url
-        if args.seed:
-            config["seeds"] = args.seed
-        if args.out:
-            config["output_dir"] = args.out
+        # 1. Ghi đè các cấu hình mức cao (Top-level configs)
+        overrides = {
+            "base_url": args.base_url,
+            "seeds": args.seed or None,
+            "output_dir": args.out,
+        }
+        for key, value in overrides.items():
+            if value:
+                config[key] = value
+
+        # 2. Ghi đè các cấu hình lồng nhau (Nested configs)
         if args.no_static:
             config.setdefault("static", {})["enabled"] = False
         if args.dynamic:
             config.setdefault("dynamic", {})["enabled"] = True
         if args.dedupe_mode:
             config.setdefault("dedupe", {})["mode"] = args.dedupe_mode
-        if args.har:
-            config.setdefault("imports", {}).setdefault("har_files", [])
-            config["imports"]["har_files"].extend(args.har)
-        if args.manual:
-            config.setdefault("imports", {}).setdefault("manual_seed_files", [])
-            config["imports"]["manual_seed_files"].extend(args.manual)
 
-    def _discover_records(self, config: dict, args: argparse.Namespace) -> List[EndpointRecord]:
-        records: List[EndpointRecord] = []
-        records.extend(self._run_crawlers(config, args))
-        records.extend(self._run_importers(config))
-        print(f"[*] Raw records: {len(records)}")
+        # 3. Ghi đè cấu hình Imports
+        imports = config.setdefault("imports", {})
+        if args.har: imports.setdefault("har_files", []).extend(args.har)
+        if args.manual: imports.setdefault("manual_seed_files", []).extend(args.manual)
+
+        return config
+
+    def _collect_records(self, config: dict, auth_profile_names: list[str]) -> list[EndpointRecord]:
+        records = []
+        records.extend(self._crawl(config, auth_profile_names))
+        records.extend(self._import(config))
+        print(f"[*] Tổng số bản ghi thô thu thập được: {len(records)}")
         return records
 
-    def _prepare_records(self, records: List[EndpointRecord], config: dict) -> List[EndpointRecord]:
-        enriched = self.enricher.enrich_many(records)
-        mode = self._dedupe_mode(config)
-        merged = EndpointDeduplicator(mode=mode).dedupe(enriched)
-        print(f"[*] Records after dedupe ({mode}): {len(merged)}")
-        return merged
-
-    def _dedupe_mode(self, config: dict) -> str:
-        return config.get("dedupe", {}).get("mode", "smart")
-
-    def _export_records(self, records: List[EndpointRecord], config: dict) -> Path:
-        output_dir = Path(config.get("output_dir", "recon-output"))
-        self.exporter.export_all(records, output_dir)
-        return output_dir
-
-    def _run_crawlers(self, config: dict, args: argparse.Namespace) -> List[EndpointRecord]:
-        records: List[EndpointRecord] = []
+    def _crawl(self, config: dict, auth_profile_names: list[str]) -> list[EndpointRecord]:
         run_static = config.get("static", {}).get("enabled", True)
         run_dynamic = config.get("dynamic", {}).get("enabled", False)
 
-        if not run_static and not run_dynamic:
-            return records
+        if not (run_static or run_dynamic):
+            return []
 
-        auth_manager = AuthManager(config)
         try:
-            profiles = auth_manager.select_profiles(args.auth_profile)
+            auth_manager = AuthManager(config)
+            profiles = auth_manager.select_profiles(auth_profile_names)
         except ValueError as error:
-            raise SystemExit(str(error)) from error
+            raise SystemExit(f"Lỗi cấu hình Auth: {error}") from error
 
-        print(f"[*] Auth profiles: {auth_manager.profile_names(profiles)}")
+        print(f"[*] Đang chạy Crawler với các hồ sơ auth: {auth_manager.profile_names(profiles)}")
+        records = []
+
         for profile in profiles:
-            profile_config = auth_manager.config_for_profile(profile)
-            auth_context = profile_config.get("auth_context", "anonymous")
+            p_config = auth_manager.config_for_profile(profile)
+            ctx = p_config.get("auth_context", "anonymous")
 
             if run_static:
-                print(f"[*] Running static crawler as {auth_context}...")
-                records.extend(StaticHtmlCrawler(profile_config).crawl())
+                print(f"  -> [Static] Quét HTML thuần (Context: {ctx})...")
+                records.extend(StaticHtmlCrawler(p_config).crawl())
 
             if run_dynamic:
-                print(f"[*] Running Playwright dynamic crawler as {auth_context}...")
-                records.extend(DynamicCrawler(profile_config).crawl())
+                print(f"  -> [Dynamic] Quét bằng Playwright (Context: {ctx})...")
+                records.extend(DynamicCrawler(p_config).crawl())
 
         return records
 
-    def _run_importers(self, config: dict) -> List[EndpointRecord]:
-        records: List[EndpointRecord] = []
+    def _import(self, config: dict) -> list[EndpointRecord]:
+        records = []
+        imports = config.get("imports", {})
 
-        for har_file in config.get("imports", {}).get("har_files", []):
-            print(f"[*] Importing HAR: {har_file}")
+        for har_file in imports.get("har_files", []):
+            print(f"[*] Import dữ liệu từ HAR: {har_file}")
             records.extend(HarImporter(config).import_file(har_file))
 
-        for manual_file in config.get("imports", {}).get("manual_seed_files", []):
-            print(f"[*] Importing manual seeds: {manual_file}")
+        for manual_file in imports.get("manual_seed_files", []):
+            print(f"[*] Import danh sách URL mồi: {manual_file}")
             records.extend(ManualSeedImporter(config).import_file(manual_file))
 
         return records
 
+    def _enrich_and_dedupe(self, records: list[EndpointRecord], config: dict) -> list[EndpointRecord]:
+        mode = config.get("dedupe", {}).get("mode", "smart")
+
+        enriched_records = self.enricher.enrich_many(records)
+        final_records = EndpointDeduplicator(mode=mode).dedupe(enriched_records)
+
+        print(f"[*] Số bản ghi sau khi lọc trùng (Chế độ: {mode}): {len(final_records)}")
+        return final_records
+
+    def _export(self, records: list[EndpointRecord], config: dict) -> Path:
+        output_dir = Path(config.get("output_dir", "recon-output"))
+        self.exporter.export_all(records, output_dir)
+        return output_dir
+
     def _print_outputs(self, output_dir: Path) -> None:
-        print(f"[*] Wrote: {output_dir / 'inventory.json'}")
-        print(f"[*] Wrote: {output_dir / 'inventory.md'}")
-        print(f"[*] Wrote: {output_dir / 'params.txt'}")
-        print(f"[*] Wrote: {output_dir / 'test_plan.md'}")
+        files = ["inventory.json", "inventory.md", "params.txt", "test_plan.md"]
+        for filename in files:
+            print(f"[+] Đã lưu file: {output_dir / filename}")
 
 
 def main(argv=None) -> int:
