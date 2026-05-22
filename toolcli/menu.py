@@ -21,6 +21,9 @@ class LauncherState:
     trace_log: bool = True
     ai_config: str = "ai.config.example.json"
     ai_output: str = "ai-output"
+    aitest_output: str = "aitest-output"
+    aitest_max_targets: str = "5"
+    aitest_rounds: str = "4"
 
 
 class ToolCliMenu:
@@ -62,6 +65,8 @@ class ToolCliMenu:
                 self.edit_ai_settings()
             elif choice == "13":
                 self.test_ai_provider()
+            elif choice == "14":
+                self.run_ai_iterative_test()
             elif choice == "0":
                 return 0
             else:
@@ -83,6 +88,8 @@ class ToolCliMenu:
         print(f"Trace log     : {'ON' if self.state.trace_log else 'OFF'}")
         print(f"AI config     : {self.state.ai_config}")
         print(f"AI output     : {self.state.ai_output}")
+        print(f"AI test output: {self.state.aitest_output}")
+        print(f"AI test limit : {self.state.aitest_max_targets} targets, {self.state.aitest_rounds} rounds")
         print("-" * 72)
         print("1. Run static recon")
         print("2. Run static + dynamic Playwright recon")
@@ -97,6 +104,7 @@ class ToolCliMenu:
         print("11. Recon/fuzz settings")
         print("12. AI settings")
         print("13. Test AI provider/API key")
+        print("14. Run AI iterative test")
         print("0. Exit")
 
     def run_recon(self, dynamic: bool) -> None:
@@ -136,6 +144,22 @@ class ToolCliMenu:
         ]
         self.runner.run_python_module("ai-analysis", "aitool", args)
 
+    def run_ai_iterative_test(self) -> None:
+        args = [
+            self.state.inventory_path,
+            "--base-url",
+            self.state.base_url,
+            "--ai-config",
+            self.state.ai_config,
+            "--out",
+            self.state.aitest_output,
+            "--max-targets",
+            self.state.aitest_max_targets,
+            "--rounds",
+            self.state.aitest_rounds,
+        ]
+        self.runner.run_python_module("ai-iterative-test", "aitest", args)
+
     def test_ai_provider(self) -> None:
         args = [
             "--config",
@@ -166,6 +190,9 @@ class ToolCliMenu:
         print("AI settings. Leave blank to keep the current value.")
         self.state.ai_config = self._ask("AI config", self.state.ai_config)
         self.state.ai_output = self._ask("AI output", self.state.ai_output)
+        self.state.aitest_output = self._ask("AI test output", self.state.aitest_output)
+        self.state.aitest_max_targets = self._ask("AI test max targets", self.state.aitest_max_targets)
+        self.state.aitest_rounds = self._ask("AI test rounds", self.state.aitest_rounds)
         self.state.findings_path = self._ask("Findings path", self.state.findings_path)
 
     def show_inventory_summary(self) -> None:

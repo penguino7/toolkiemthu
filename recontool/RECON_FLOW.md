@@ -14,7 +14,7 @@ Biểu đồ này cho thấy toàn bộ pipeline từ lúc người dùng chạy
 
 ```mermaid
 flowchart TD
-    A[Người dùng chạy run_recon.sh] --> B[Ứng dụng chính: ReconApplication]
+    A[Người dùng chạy run_tool.sh và chọn recon] --> B[Ứng dụng chính: ReconApplication]
     B --> C[Đọc cấu hình bằng ConfigLoader]
     C --> D[Áp dụng tham số từ dòng lệnh]
     D --> E{Nguồn dữ liệu nào được bật?}

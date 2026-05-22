@@ -1,10 +1,11 @@
 # Tool Kiểm Thử Web
 
-Repo này gồm hai tool tách riêng nhưng dùng chung một luồng làm việc:
+Repo này gồm các module tách riêng nhưng dùng chung một luồng làm việc:
 
 ```text
 recontool/  thu thập endpoint, form, param, SPA/API và xuất inventory
 fuzztool/   đọc inventory từ recontool để kiểm thử XSS/SQLi có kiểm soát
+aitest/     AI-assisted iterative testing, chạy riêng và xuất session log riêng
 ```
 
 Luồng sử dụng chính:
@@ -14,6 +15,8 @@ recontool -> recon-output/inventory.json -> fuzztool -> fuzz-output/findings.jso
 ```
 
 `recontool` chỉ làm recon, không gửi giá trị kiểm thử. `fuzztool` mới là phần gửi payload kiểm thử, có `--dry-run`, giới hạn scope, giới hạn request và mặc định không fuzz POST/body/json nếu chưa bật `--include-post`.
+
+`aitest` là module thử nghiệm riêng: AI đề xuất payload theo từng vòng, tool kiểm tra an toàn rồi mới gửi request. Kết quả ghi vào `aitest-output/`, không làm thay đổi finding chính.
 
 ## Cài Đặt Trên Kali/Linux
 
@@ -60,6 +63,8 @@ Menu sẽ hiện các lựa chọn bằng số:
 10. Xem tóm tắt AI report
 11. Cài đặt recon/fuzz
 12. Cài đặt AI
+13. Kiểm tra AI provider/API key
+14. Chạy AI iterative test
 0. Thoát
 ```
 
@@ -89,22 +94,14 @@ Giả sử lab chạy tại:
 http://127.0.0.1:12001
 ```
 
-Chạy static recon:
+Chạy static recon: mở menu bằng `bash run_tool.sh`, sau đó chọn `1`.
+
+Chạy cả static và dynamic recon: mở menu bằng `bash run_tool.sh`, sau đó chọn `2`.
+
+Nếu chưa cài Playwright, cài trước bằng:
 
 ```bash
-bash run_recon.sh http://127.0.0.1:12001
-```
-
-Chạy cả static và dynamic recon:
-
-```bash
-bash run_recon.sh http://127.0.0.1:12001 --dynamic
-```
-
-Cài Playwright trong lúc chạy nếu chưa cài:
-
-```bash
-bash run_recon.sh http://127.0.0.1:12001 --dynamic --install-playwright
+python -m playwright install chromium
 ```
 
 Output recon:
@@ -122,23 +119,13 @@ Fuzztool đọc file `inventory.json` sinh bởi recontool.
 
 Nếu inventory được tạo ở port cũ, dùng `--base-url` để ép fuzztool gọi đúng lab hiện tại. Khi chạy bằng menu, Base URL trong phần settings sẽ được truyền tự động cho fuzz.
 
-```bash
-bash run_fuzz.sh recon-output/inventory.json --base-url http://127.0.0.1:12001 --xss --sqli
-```
+Trong menu, dùng `11. Cài đặt recon/fuzz` để chỉnh `Base URL`, `Inventory path`, `Fuzz output` và `Max requests`.
 
 Mặc định fuzztool không dùng proxy từ biến môi trường để tránh trường hợp Python đi qua proxy khác với `curl`. Nếu muốn cố tình đi qua Burp/ZAP, bật `use_environment_proxy` trong `fuzz.config.example.json`.
 
-Xem target trước, không gửi request:
+Xem target trước, không gửi request: chọn `6. Dry-run fuzz all`.
 
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli --dry-run
-```
-
-Chạy XSS:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss
-```
+Chạy XSS: chọn `3. Chạy fuzz XSS`.
 
 Lệnh trên chạy đủ reflected XSS, DOM XSS và Stored XSS. Tool tự bật POST/body/json cho nhóm XSS vì Stored XSS cần gửi dữ liệu.
 
@@ -148,27 +135,15 @@ Stored XSS dùng `stored_check_paths` trong `fuzz.config.example.json` để bi�
 "stored_check_paths": ["/news.php?id=1", "/spa/comments/1", "/spa/logs"]
 ```
 
-Chạy SQLi:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --sqli
-```
+Chạy SQLi: chọn `4. Chạy fuzz SQLi`.
 
 Payload SQLi nằm trong `fuzztool/payloads/sqli.txt`, chia theo nhóm error-based, boolean-based và union-based. Scanner sẽ tự thay `{sample}` bằng giá trị mẫu của param; riêng union-based sẽ tự sinh `{columns}` để thử số cột UNION SELECT.
 
-Chạy cả XSS và SQLi:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli
-```
+Chạy cả XSS và SQLi: chọn `5. Chạy fuzz XSS + SQLi`.
 
 Đây là lệnh fuzz đầy đủ cho lab: reflected XSS, DOM XSS, Stored XSS, SQLi error-based, SQLi boolean-based và SQLi union-based. `--include-post` vẫn còn được hỗ trợ nhưng không cần thêm khi đã dùng `--xss` hoặc `--sqli`.
 
-Giới hạn số request:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli --max-requests 50
-```
+Giới hạn số request: vào `11. Cài đặt recon/fuzz`, nhập giá trị ở dòng `Max requests`, rồi chạy lại lựa chọn fuzz cần dùng.
 
 Output fuzz:
 
@@ -178,6 +153,23 @@ fuzz-output/findings.md
 ```
 
 `findings` chỉ chứa kết quả đã có bằng chứng. Với XSS, tool dùng Playwright mở URL trong browser thật và chỉ ghi khi bắt được `alert()`/dialog chứa marker của payload. Payload chỉ được phản xạ trong HTML/JSON hoặc chỉ render ra DOM nhưng không thực thi sẽ không được ghi vào `findings`.
+
+## Chạy AI Iterative Test
+
+Module này chạy riêng để AI gợi ý payload theo nhiều vòng. Tool vẫn kiểm soát payload, scope và request.
+
+Trong menu, chọn `14. Chạy AI iterative test`.
+
+Muốn đổi số endpoint hoặc số vòng test thì vào `12. Cài đặt AI`, chỉnh `AI test max targets` và `AI test rounds`.
+
+Output:
+
+```text
+aitest-output/sessions.json
+aitest-output/sessions.md
+```
+
+`aitest` không sửa `fuzz-output/findings.json`; đây là session log để đọc quá trình AI đề xuất payload và response từng vòng.
 
 ## Chạy AI Analysis
 
@@ -228,8 +220,6 @@ export AI_API_KEY="your_router_api_key"
 ├── recon.config.example.json
 ├── fuzz.config.example.json
 ├── requirements.txt
-├── run_recon.sh
-├── run_fuzz.sh
 ├── run_tool.sh
 ├── seeds.example.txt
 ├── toolcli/
@@ -316,7 +306,8 @@ ReconExporter         xuất inventory/test_plan
 Khi mới đọc code, không cần mở tất cả file cùng lúc. Nên đọc theo thứ tự này:
 
 ```text
-run_recon.sh
+run_tool.sh
+toolcli/menu.py
 recontool/cli.py
 recontool/crawlers/static_html.py
 recontool/crawlers/playwright_dynamic.py
@@ -325,7 +316,6 @@ recontool/enrich.py
 recontool/dedupe.py
 recontool/exporters.py
 
-run_fuzz.sh
 fuzztool/cli.py
 fuzztool/inventory_loader.py
 fuzztool/mutator.py

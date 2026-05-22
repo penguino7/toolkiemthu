@@ -5,11 +5,12 @@
 ## Luồng Dùng
 
 ```bash
-bash run_recon.sh http://127.0.0.1:12001 --dynamic
-bash run_fuzz.sh recon-output/inventory.json --base-url http://127.0.0.1:12001 --xss --sqli
+bash run_tool.sh
 ```
 
-`--base-url` giúp fuzztool rewrite host/port từ inventory sang lab đang chạy hiện tại. Mặc định fuzztool không dùng proxy từ biến môi trường; muốn đi qua proxy thì bật `use_environment_proxy` trong `fuzz.config.example.json`.
+Trong menu, chọn `2` để chạy recon dynamic, rồi chọn `5` để fuzz cả XSS và SQLi.
+
+`Base URL` trong menu giúp fuzztool rewrite host/port từ inventory sang lab đang chạy hiện tại. Mặc định fuzztool không dùng proxy từ biến môi trường; muốn đi qua proxy thì bật `use_environment_proxy` trong `fuzz.config.example.json`.
 
 ## Chế Độ An Toàn
 
@@ -27,17 +28,9 @@ Mặc định fuzztool:
 
 ## Lệnh Mẫu
 
-Chỉ xem target, không gửi request:
+Chỉ xem target, không gửi request: chọn `6. Dry-run fuzz all` trong menu.
 
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli --dry-run
-```
-
-Chạy đủ nhóm XSS, gồm reflected XSS, DOM XSS và Stored XSS:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss
-```
+Chạy đủ nhóm XSS, gồm reflected XSS, DOM XSS và Stored XSS: chọn `3. Run XSS fuzz` trong menu.
 
 Stored XSS dùng `stored_check_paths` trong `fuzz.config.example.json`, vì tool phải biết sau khi submit payload thì nên mở URL nào để xác minh payload đã được lưu và thực thi. File mẫu đã để sẵn path cho lab local, khi test web khác thì sửa lại danh sách này.
 
@@ -53,11 +46,7 @@ Payload XSS mặc định là payload thật có marker bên trong:
 <img src=x onerror=alert("FUZZXSS_xxxxxxxx")>
 ```
 
-Chạy đủ nhóm SQLi, gồm error-based, boolean-based và union-based:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --sqli
-```
+Chạy đủ nhóm SQLi, gồm error-based, boolean-based và union-based: chọn `4. Run SQLi fuzz` trong menu.
 
 Payload SQLi được đọc từ:
 
@@ -67,23 +56,7 @@ fuzztool/payloads/sqli.txt
 
 File này chia payload theo nhóm `error`, `boolean` và `union`. Có thể thêm payload mới bằng template `{sample}`; riêng union-based dùng `{columns}` do scanner tự sinh.
 
-Chạy đầy đủ cả XSS và SQLi:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss --sqli
-```
-
-Chạy riêng DOM XSS:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --xss-dom
-```
-
-Chạy riêng SQLi union-based:
-
-```bash
-bash run_fuzz.sh recon-output/inventory.json --sqli-union
-```
+Chạy đầy đủ cả XSS và SQLi: chọn `5. Run XSS + SQLi fuzz` trong menu.
 
 ## Output
 

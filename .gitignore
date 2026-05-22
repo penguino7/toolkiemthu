@@ -12,6 +12,8 @@ fuzz-output/
 fuzz-output*/
 ai-output/
 ai-output*/
+aitest-output/
+aitest-output*/
 runs/
 test-output/
 test-output*/
