@@ -48,6 +48,7 @@ class FuzzApplication:
 
         client = self._build_client(config)
         findings_table = FindingTablePrinter()
+        findings_table.start()
         findings = self._scan(config, client, targets, findings_table.show)
         findings_table.finish()
         self._write_report(findings, client, config)
@@ -168,11 +169,16 @@ class FindingTablePrinter:
 
     def __init__(self) -> None:
         self.count = 0
+        self.started = False
+
+    def start(self) -> None:
+        if self.started:
+            return
+        self.started = True
+        self._print_header()
 
     def show(self, finding: Finding) -> None:
-        if self.count == 0:
-            self._print_header()
-
+        self.start()
         self.count += 1
         parsed = urlparse(finding.request_url or finding.target.url)
         host = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else finding.target.url
@@ -193,9 +199,8 @@ class FindingTablePrinter:
 
     def finish(self) -> None:
         if self.count == 0:
-            print("[*] Live findings table: no confirmed findings.")
-        else:
-            print("-" * self._table_width())
+            print(self._row(["-", "-", "No confirmed findings", "-", "-", "-", "-", "-", "-"]))
+        print("-" * self._table_width())
 
     def _print_header(self) -> None:
         print("")

@@ -15,7 +15,7 @@ class LauncherState:
     inventory_path: str = "recon-output/inventory.json"
     findings_path: str = "fuzz-output/findings.json"
     max_requests: str = ""
-    trace_log: bool = True
+    trace_log: bool = False
     ai_config: str = "ai.config.example.json"
     ai_output: str = "ai-output"
     aitest_output: str = "aitest-output"
