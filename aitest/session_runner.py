@@ -357,6 +357,7 @@ class AiIterativeSessionRunner:
                 "attack_type": decision.attack_type,
                 "source": decision.source,
                 "payload": decision.payload,
+                "reason": decision.reason,
                 "status": status,
                 "confirmed": confirmed,
                 "comment": comment,

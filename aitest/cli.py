@@ -101,6 +101,7 @@ class AiTestTablePrinter:
         ("Payload", 34),
         ("Status", 8),
         ("Confirmed", 10),
+        ("Reason", 42),
         ("Comment", 24),
     ]
 
@@ -127,13 +128,14 @@ class AiTestTablePrinter:
             event.get("payload", "-"),
             event.get("status", "-"),
             "yes" if event.get("confirmed") else "no",
+            event.get("reason", "-"),
             event.get("comment", "-"),
         ]
         print(self._row(row), flush=True)
 
     def finish(self) -> None:
         if self.count == 0:
-            print(self._row(["-", "-", "-", "No AI test rounds", "-", "-", "-", "-", "-"]))
+            print(self._row(["-", "-", "-", "No AI test rounds", "-", "-", "-", "-", "-", "-"]))
         print("-" * self._table_width())
 
     def _print_header(self) -> None:
