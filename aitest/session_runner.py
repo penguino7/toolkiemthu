@@ -314,7 +314,6 @@ class AiIterativeSessionRunner:
             "method": target.method,
             "url": target.url,
             "path": target.path,
-            "auth_context": target.auth_context,
             "param": target.param_name,
             "location": target.param_location,
             "type_hint": target.type_hint,

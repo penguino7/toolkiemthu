@@ -261,7 +261,6 @@ export AI_API_KEY="your_router_api_key"
 ├── fuzz.config.example.json
 ├── requirements.txt
 ├── run_tool.sh
-├── seeds.example.txt
 ├── toolcli/
 │   ├── __main__.py
 │   ├── menu.py
@@ -279,7 +278,6 @@ export AI_API_KEY="your_router_api_key"
 ├── recontool/
 │   ├── __main__.py
 │   ├── RECON_FLOW.md
-│   ├── auth.py
 │   ├── cli.py
 │   ├── config.py
 │   ├── dedupe.py
@@ -288,12 +286,9 @@ export AI_API_KEY="your_router_api_key"
 │   ├── models.py
 │   ├── normalizer.py
 │   ├── scope.py
-│   ├── crawlers/
-│   │   ├── playwright_dynamic.py
-│   │   └── static_html.py
-│   └── importers/
-│       ├── har.py
-│       └── manual_seed.py
+│   └── crawlers/
+│       ├── playwright_dynamic.py
+│       └── static_html.py
 └── fuzztool/
     ├── __main__.py
     ├── cli.py
@@ -317,8 +312,6 @@ Recontool làm các việc:
 ```text
 static crawl
 dynamic crawl bằng Playwright
-auth profile
-manual seed / HAR import
 normalize EndpointRecord
 dedupe endpoint
 export inventory
@@ -379,8 +372,8 @@ Các hàm recon chính cũng theo kiểu tương tự:
 
 ```text
 StaticHtmlCrawler.crawl()   lấy seed -> request page -> parse link/form -> đưa link mới vào queue
-DynamicCrawler.crawl()      mở browser -> login nếu có -> nghe response -> tạo EndpointRecord
-ReconNormalizer.make_record() normalize URL -> tạo record -> thêm params -> gắn evidence
+DynamicCrawler.crawl()      mở browser -> nghe response -> tạo EndpointRecord
+ReconNormalizer.make_record() normalize URL -> tạo record -> thêm params
 EndpointDeduplicator.dedupe() tạo fingerprint -> merge record trùng
 ```
 
@@ -400,7 +393,6 @@ Các file có thể đọc sau:
 ```text
 http_client.py          chi tiết gửi HTTP request
 scope.py                luật giới hạn domain/path
-auth.py                 login/auth profile
 payloads/               danh sách payload XSS/SQLi
 xss_scanner.py          scanner XSS và xác minh bằng Playwright
 sqli_scanner.py         scanner SQLi và luật nhận diện evidence

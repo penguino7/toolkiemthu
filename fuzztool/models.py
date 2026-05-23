@@ -11,7 +11,6 @@ class FuzzTarget:
     method: str  # HTTP method: GET, POST...
     url: str  # URL mẫu lấy từ inventory.json.
     path: str  # Path/canonical_path, ví dụ: /search.php.
-    auth_context: str  # Context lúc recon phát hiện endpoint: anonymous, admin...
     param_name: str  # Tên param sẽ fuzz, ví dụ: q, id, content.
     param_location: str  # Vị trí param: query, body hoặc json.
     type_hint: str = "string"  # Kiểu suy luận từ recon: string, int, float...
@@ -64,7 +63,6 @@ class Finding:
             "method": self.target.method,
             "path": self.target.path,
             "url": self.request_url,
-            "auth_context": self.target.auth_context,
             "param": self.target.param_name,
             "location": self.target.param_location,
             "payload": self.payload,

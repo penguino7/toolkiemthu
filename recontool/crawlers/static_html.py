@@ -89,7 +89,6 @@ class StaticHtmlCrawler:
         )
 
         self.base_url = config["base_url"]
-        self.auth_context = config.get("auth_context", "anonymous")
         self.max_pages = int(options.get("max_pages", 50))
         self.max_depth = int(options.get("max_depth", 3))
 
@@ -130,7 +129,6 @@ class StaticHtmlCrawler:
                 response.status,
                 content_type,
                 response.headers,
-                response.text,
                 parent,
             )
         ]
@@ -149,7 +147,6 @@ class StaticHtmlCrawler:
         status: int,
         content_type: str,
         response_headers: Dict[str, str],
-        response_text: str,
         parent: str | None,
     ) -> EndpointRecord:
         return self.normalizer.make_record(
@@ -157,12 +154,10 @@ class StaticHtmlCrawler:
             url,
             self.SOURCE_PAGE,
             base_url=self.base_url,
-            auth_context=self.auth_context,
             status=status,
             response_content_type=content_type,
             request_headers=self.session.headers,
             response_headers=response_headers,
-            response_text=response_text,
             discovered_from=parent,
         )
 
@@ -178,7 +173,6 @@ class StaticHtmlCrawler:
                 form.get("action", page_url),
                 self.SOURCE_FORM,
                 base_url=self.base_url,
-                auth_context=self.auth_context,
                 request_content_type="application/x-www-form-urlencoded" if method != "GET" else "",
                 body=body,
                 discovered_from=page_url,

@@ -8,7 +8,6 @@ from typing import Any, Dict
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "base_url": "http://127.0.0.1:12001",
-    "auth_context": "anonymous",
     "headers": {
         "User-Agent": "ReconTool/0.1"
     },
@@ -26,7 +25,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "max_pages": 20,
         "timeout_ms": 15000,
         "headless": True,
-        "storage_state": "",
         "click_selectors": [],
         "max_clicks_per_page": 0,
         "deny_click_texts": ["logout", "delete", "remove", "submit", "sign out"],
@@ -35,16 +33,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "scroll_steps": 0,
         "scroll_delay_ms": 300,
         "debug": False
-    },
-    "auth_profiles": [
-        {
-            "name": "anonymous",
-            "type": "none"
-        }
-    ],
-    "imports": {
-        "har_files": [],
-        "manual_seed_files": []
     },
     "dedupe": {
         "mode": "smart"

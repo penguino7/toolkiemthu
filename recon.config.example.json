@@ -1,6 +1,5 @@
 {
   "base_url": "http://127.0.0.1:12001",
-  "auth_context": "anonymous",
   "headers": {
     "User-Agent": "ReconTool/0.2"
   },
@@ -8,29 +7,6 @@
     "include_hosts": ["127.0.0.1", "localhost"],
     "exclude_paths": ["/user/logout.php"]
   },
-  "auth_profiles": [
-    {
-      "name": "anonymous",
-      "type": "none",
-      "enabled": true
-    },
-    {
-      "name": "admin",
-      "type": "form",
-      "enabled": false,
-      "login_url": "/user/login.php",
-      "method": "POST",
-      "data": {
-        "username": "admin",
-        "password": "admin123"
-      },
-      "submit_selector": "button[type=\"submit\"], input[type=\"submit\"], button",
-      "success_check": {
-        "url": "/admin/index.php",
-        "contains": "admin"
-      }
-    }
-  ],
   "seeds": [
     "/",
     "/search.php?q=test",
@@ -50,7 +26,6 @@
     "max_pages": 30,
     "timeout_ms": 15000,
     "headless": true,
-    "storage_state": "",
     "click_selectors": [],
     "max_clicks_per_page": 0,
     "deny_click_texts": ["logout", "delete", "remove", "submit", "sign out"],
@@ -59,10 +34,6 @@
     "scroll_steps": 0,
     "scroll_delay_ms": 300,
     "debug": false
-  },
-  "imports": {
-    "har_files": [],
-    "manual_seed_files": ["seeds.example.txt"]
   },
   "dedupe": {
     "mode": "smart"

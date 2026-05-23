@@ -8,16 +8,14 @@ File này mô tả luồng hoạt động của `recontool` bằng Mermaid. Reco
 flowchart TD
     A[Người dùng chạy run_tool.sh và chọn recon] --> B[ReconApplication]
     B --> C[ConfigLoader đọc recon.config.example.json]
-    C --> D[Áp dụng tham số CLI như base-url, seed, import]
+    C --> D[Áp dụng tham số CLI như base-url, seed]
 
     D --> E{Nguồn dữ liệu}
     E -->|Static crawl| F[StaticHtmlCrawler]
     E -->|Dynamic crawl| G[DynamicCrawler Playwright]
-    E -->|Import| H[ManualSeedImporter hoặc HarImporter]
 
     F --> I[ReconNormalizer]
     G --> I
-    H --> I
 
     I --> J[EndpointRecord]
     J --> K[EndpointDeduplicator gom trùng]
@@ -69,10 +67,7 @@ Dynamic crawler mở Chromium bằng Playwright để bắt request sinh bởi J
 ```mermaid
 flowchart TD
     A[Mở Chromium] --> B[Tạo browser context]
-    B --> C{Có cấu hình login?}
-    C -->|Có| D[Đăng nhập bằng form]
-    C -->|Không| E[Mở seed URL]
-    D --> E
+    B --> E[Mở seed URL]
     E --> F[JavaScript gọi API]
     F --> G[Bắt response]
     G --> H{Resource type cần giữ?}
@@ -97,15 +92,13 @@ flowchart TD
     A --> F[Parse body form-urlencoded]
     A --> G[Parse JSON body]
 
-    A --> H[Kiểm tra sample value có reflected không]
-    A --> I[Trích evidence lỗi database nếu có]
+    A --> H[Lưu status, content-type và headers]
 
     D --> J[EndpointRecord]
     E --> J
     F --> J
     G --> J
     H --> J
-    I --> J
 ```
 
 ## 6. Gom Trùng Endpoint
@@ -120,7 +113,6 @@ flowchart TD
     B --> E[canonical_path]
     B --> F[tên query/body/json param]
     B --> G[request content-type]
-    B --> H[auth_context]
 
     B --> I{Fingerprint đã có?}
     I -->|Chưa| J[Thêm record mới]
@@ -146,9 +138,8 @@ classDiagram
     class ReconApplication {
         +run(argv)
         -_load_config(args)
-        -_collect_records(config, auth_profile_names)
-        -_crawl(config, auth_profile_names)
-        -_import(config)
+        -_collect_records(config)
+        -_crawl(config)
         -_dedupe_records(records, config)
     }
 

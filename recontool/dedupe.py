@@ -46,7 +46,6 @@ class EndpointDeduplicator:
                 "b:" + ",".join(body_names),
                 "j:" + ",".join(json_names),
                 "ct:" + content_type,
-                "auth:" + record.auth_context,
             ]
         )
 

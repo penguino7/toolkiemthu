@@ -67,7 +67,6 @@ class InventoryLoader:
             method=str(record.get("method", "GET")).upper(),
             url=fuzz_url,
             path=str(record.get("canonical_path") or record.get("path") or ""),
-            auth_context=str(record.get("auth_context", "anonymous")),
             param_name=name,
             param_location=location,
             type_hint=str(param.get("type_hint", "string")),

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections import deque
-from pathlib import Path
 from typing import List
 
 from ..models import EndpointRecord
@@ -17,7 +16,6 @@ class DynamicCrawler:
     """
 
     SOURCE = "playwright_dynamic_crawler"
-    TEXT_CONTENT_MARKERS = ["text/", "html", "json", "javascript", "xml"]
     DEFAULT_RESOURCE_TYPES = {"document", "xhr", "fetch"}
 
     def __init__(
@@ -35,9 +33,7 @@ class DynamicCrawler:
         self.max_pages = int(options.get("max_pages", 20))
         self.timeout_ms = int(options.get("timeout_ms", 15000))
         self.headless = bool(options.get("headless", True))
-        self.auth_context = config.get("auth_context", "anonymous")
         self.headers = config.get("headers", {})
-        self.auth_profile = config.get("_auth_profile", {"name": self.auth_context, "type": "none"})
         self.options = options
         self.records: List[EndpointRecord] = []
 
@@ -66,7 +62,7 @@ class DynamicCrawler:
         seeds = [self.normalizer.absolute_url(seed, self.base_url) for seed in self.config.get("seeds", ["/"])]
 
         with sync_playwright() as playwright:
-            # Bước 1: mở browser context. Nếu có storage_state/header thì dùng ở đây.
+            # Bước 1: mở browser context với headers cấu hình sẵn.
             browser = playwright.chromium.launch(headless=self.headless)
             context = browser.new_context(**self._context_kwargs())
             page = context.new_page()
@@ -74,8 +70,7 @@ class DynamicCrawler:
             # Bước 2: mỗi response của browser sẽ chạy qua _on_response().
             page.on("response", self._on_response)
 
-            # Bước 3: login nếu config có auth profile dạng form, rồi crawl seed pages.
-            self._login_with_form(page)
+            # Bước 3: crawl seed pages.
             self._crawl_pages(page, seeds)
 
             context.close()
@@ -94,35 +89,7 @@ class DynamicCrawler:
         return sync_playwright
 
     def _context_kwargs(self) -> dict:
-        kwargs = {"extra_http_headers": self.headers}
-        storage_state = self.options.get("storage_state")
-        if storage_state and Path(storage_state).exists():
-            kwargs["storage_state"] = storage_state
-        return kwargs
-
-    def _login_with_form(self, page) -> None:
-        if self.auth_profile.get("type") != "form":
-            return
-
-        login_url = self.normalizer.absolute_url(self.auth_profile["login_url"], self.base_url)
-        page.goto(login_url, wait_until="networkidle", timeout=self.timeout_ms)
-
-        for name, value in self.auth_profile.get("data", {}).items():
-            try:
-                page.fill(f'[name="{name}"]', str(value), timeout=3000)
-            except Exception:
-                pass
-
-        submit = self.auth_profile.get("submit_selector") or 'button[type="submit"], input[type="submit"], button'
-        try:
-            page.click(submit, timeout=5000)
-            page.wait_for_load_state("networkidle", timeout=self.timeout_ms)
-        except Exception:
-            pass
-
-        success = self.auth_profile.get("success_check") or {}
-        if success.get("url"):
-            page.goto(self.normalizer.absolute_url(success["url"], self.base_url), wait_until="networkidle")
+        return {"extra_http_headers": self.headers}
 
     def _crawl_pages(self, page, seeds: List[str]) -> None:
         crawl_queue = deque(seeds)
@@ -226,21 +193,18 @@ class DynamicCrawler:
         response_headers = dict(response.headers)
         request_headers = dict(request.headers)
         response_content_type = response_headers.get("content-type", "")
-        response_text = self._response_text(response, response_content_type)
 
         record = self.normalizer.make_record(
             request.method,
             request.url,
             self.SOURCE,
             base_url=self.base_url,
-            auth_context=self.auth_context,
             status=response.status,
             request_content_type=request_headers.get("content-type", ""),
             response_content_type=response_content_type,
             request_headers=request_headers,
             response_headers=response_headers,
             body=request.post_data or None,
-            response_text=response_text,
             discovered_from=self.current_page_url or None,
         )
         record.evidence["resource_type"] = request.resource_type
@@ -251,14 +215,6 @@ class DynamicCrawler:
         if not self.resource_types:
             return True
         return request.resource_type.lower() in self.resource_types
-
-    def _response_text(self, response, content_type: str) -> str:
-        if not any(token in content_type.lower() for token in self.TEXT_CONTENT_MARKERS):
-            return ""
-        try:
-            return response.text()
-        except Exception:
-            return ""
 
     def _print_summary(self) -> None:
         if not self.debug:

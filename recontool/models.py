@@ -19,7 +19,6 @@ class Param:
     location: str
     type_hint: str = "string"
     sample_values: List[str] = field(default_factory=list)
-    reflected: bool = False
 
     @property
     def key(self) -> str:
@@ -35,7 +34,6 @@ class Param:
         if self.type_hint == "string":
             self.type_hint = other.type_hint 
         self.sample_values = _unique(self.sample_values + other.sample_values)[:8]
-        self.reflected = self.reflected or other.reflected
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -43,7 +41,6 @@ class Param:
             "location": self.location,
             "type_hint": self.type_hint,
             "sample_values": self.sample_values,
-            "reflected": self.reflected,
         }
 
 @dataclass
@@ -60,7 +57,6 @@ class EndpointRecord:
     port: int | None = None
     
     # 2. Context & Headers
-    auth_context: str = "anonymous"
     request_content_type: str = ""
     response_content_type: str = ""
     request_headers: Dict[str, str] = field(default_factory=dict)
@@ -113,7 +109,6 @@ class EndpointRecord:
             "port": self.port,
             "path": self.path,
             "canonical_path": self.canonical_path,
-            "auth_context": self.auth_context,
             "request_content_type": self.request_content_type,
             "response_content_type": self.response_content_type,
             "request_headers": self.request_headers,
