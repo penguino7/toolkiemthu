@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from uuid import uuid4
 
 from .http_client import FuzzHttpClient, RequestBudgetExceeded
@@ -38,10 +38,17 @@ class SqliScanner:
     DEBUG_KEYS = {"sql", "query", "debug", "request", "payload", "raw", "raw_sql", "trace", "stack", "error", "errors"}
     ECHO_KEYS = {"id", "q", "keyword", "author", "sort", "page", "news_id", "category_id", "input", "value"}
 
-    def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
+    def __init__(
+        self,
+        client: FuzzHttpClient,
+        config: dict,
+        mutator: RequestMutator | None = None,
+        on_finding: Callable[[Finding], None] | None = None,
+    ) -> None:
         self.client = client
         self.config = config
         self.mutator = mutator or RequestMutator()
+        self.on_finding = on_finding
         self.payloads = self._load_payloads()
 
         sqli_config = config.get("sqli", {})
@@ -164,7 +171,7 @@ class SqliScanner:
         evidence: str,
         details: dict,
     ) -> Finding:
-        return Finding(
+        finding = Finding(
             vuln_type="sqli",
             subtype=subtype,
             severity=severity,
@@ -175,6 +182,9 @@ class SqliScanner:
             status=response.status,
             details=details,
         )
+        if self.on_finding:
+            self.on_finding(finding)
+        return finding
 
     def _payload_kind(self, target: FuzzTarget) -> str:
         return "numeric" if target.type_hint in {"int", "float"} else "string"

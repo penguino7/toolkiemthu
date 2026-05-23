@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from hashlib import sha1
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 from urllib.parse import urljoin
 
 from .http_client import FuzzHttpClient, RequestBudgetExceeded
@@ -109,10 +109,17 @@ class XssScanner:
     - scan_dom_xss()
     """
 
-    def __init__(self, client: FuzzHttpClient, config: dict, mutator: RequestMutator | None = None) -> None:
+    def __init__(
+        self,
+        client: FuzzHttpClient,
+        config: dict,
+        mutator: RequestMutator | None = None,
+        on_finding: Callable[[Finding], None] | None = None,
+    ) -> None:
         self.client = client
         self.config = config
         self.mutator = mutator or RequestMutator()
+        self.on_finding = on_finding
 
     def run(self, targets: List[FuzzTarget]) -> List[Finding]:
         options = self.config.get("xss", {})
@@ -154,26 +161,25 @@ class XssScanner:
                 if not browser_result.executed:
                     continue
 
-                findings.append(
-                    Finding(
-                        vuln_type="xss",
-                        subtype="reflected",
-                        severity="high",
-                        target=target,
-                        payload=payload,
-                        evidence="alert_dialog_executed_after_reflection",
-                        request_url=browser_result.final_url,
-                        status=response.status,
-                        details={
-                            "context": reflection_context,
-                            "marker": marker,
-                            "dialog_messages": browser_result.dialog_messages,
-                            "rendered_in_browser": browser_result.rendered,
-                            "browser_error": browser_result.error,
-                            "elapsed_seconds": round(response.elapsed_seconds, 4),
-                        },
-                    )
+                finding = Finding(
+                    vuln_type="xss",
+                    subtype="reflected",
+                    severity="high",
+                    target=target,
+                    payload=payload,
+                    evidence="alert_dialog_executed_after_reflection",
+                    request_url=browser_result.final_url,
+                    status=response.status,
+                    details={
+                        "context": reflection_context,
+                        "marker": marker,
+                        "dialog_messages": browser_result.dialog_messages,
+                        "rendered_in_browser": browser_result.rendered,
+                        "browser_error": browser_result.error,
+                        "elapsed_seconds": round(response.elapsed_seconds, 4),
+                    },
                 )
+                findings.append(self._record_finding(finding))
 
         return findings
 
@@ -198,26 +204,25 @@ class XssScanner:
                 if not browser_result.executed:
                     continue
 
-                findings.append(
-                    Finding(
-                        vuln_type="xss",
-                        subtype="stored",
-                        severity="high",
-                        target=target,
-                        payload=payload,
-                        evidence="stored_alert_dialog_executed",
-                        request_url=browser_result.final_url,
-                        status=submit_response.status,
-                        details={
-                            "marker": marker,
-                            "submit_status": submit_response.status,
-                            "check_url": check_url,
-                            "dialog_messages": browser_result.dialog_messages,
-                            "rendered_in_browser": browser_result.rendered,
-                            "browser_error": browser_result.error,
-                        },
-                    )
+                finding = Finding(
+                    vuln_type="xss",
+                    subtype="stored",
+                    severity="high",
+                    target=target,
+                    payload=payload,
+                    evidence="stored_alert_dialog_executed",
+                    request_url=browser_result.final_url,
+                    status=submit_response.status,
+                    details={
+                        "marker": marker,
+                        "submit_status": submit_response.status,
+                        "check_url": check_url,
+                        "dialog_messages": browser_result.dialog_messages,
+                        "rendered_in_browser": browser_result.rendered,
+                        "browser_error": browser_result.error,
+                    },
                 )
+                findings.append(self._record_finding(finding))
 
         return findings
 
@@ -237,25 +242,24 @@ class XssScanner:
                 if not browser_result.executed:
                     continue
 
-                findings.append(
-                    Finding(
-                        vuln_type="xss",
-                        subtype="dom",
-                        severity="high",
-                        target=target,
-                        payload=payload,
-                        evidence="alert_dialog_executed",
-                        request_url=browser_result.final_url,
-                        status=None,
-                        details={
-                            "marker": marker,
-                            "dialog_messages": browser_result.dialog_messages,
-                            "rendered_in_browser": browser_result.rendered,
-                            "browser_error": browser_result.error,
-                            "scanner": "playwright_dom",
-                        },
-                    )
+                finding = Finding(
+                    vuln_type="xss",
+                    subtype="dom",
+                    severity="high",
+                    target=target,
+                    payload=payload,
+                    evidence="alert_dialog_executed",
+                    request_url=browser_result.final_url,
+                    status=None,
+                    details={
+                        "marker": marker,
+                        "dialog_messages": browser_result.dialog_messages,
+                        "rendered_in_browser": browser_result.rendered,
+                        "browser_error": browser_result.error,
+                        "scanner": "playwright_dom",
+                    },
                 )
+                findings.append(self._record_finding(finding))
 
         return findings
 
@@ -268,6 +272,11 @@ class XssScanner:
                 print(f"[!] {error}")
                 return findings
         return findings
+
+    def _record_finding(self, finding: Finding) -> Finding:
+        if self.on_finding:
+            self.on_finding(finding)
+        return finding
 
     def _payloads_for_current_mode(self, marker: str) -> List[str]:
         payload_mode = self.config.get("xss", {}).get("payload_mode", "proof")

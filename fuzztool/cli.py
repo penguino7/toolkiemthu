@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .config import FuzzConfigLoader
 from .http_client import FuzzHttpClient, RequestBudgetExceeded
@@ -45,7 +47,9 @@ class FuzzApplication:
         self._print_plan(config, targets)
 
         client = self._build_client(config)
-        findings = self._scan(config, client, targets)
+        findings_table = FindingTablePrinter()
+        findings = self._scan(config, client, targets, findings_table.show)
+        findings_table.finish()
         self._write_report(findings, client, config)
         return 0
 
@@ -112,13 +116,13 @@ class FuzzApplication:
             use_environment_proxy=bool(safety.get("use_environment_proxy", False)),
         )
 
-    def _scan(self, config: dict, client: FuzzHttpClient, targets: list[FuzzTarget]) -> list[Finding]:
+    def _scan(self, config: dict, client: FuzzHttpClient, targets: list[FuzzTarget], on_finding=None) -> list[Finding]:
         findings: list[Finding] = []
         try:
             if config.get("xss", {}).get("enabled", False):
-                findings.extend(XssScanner(client, config).run(self._xss_targets(targets)))
+                findings.extend(XssScanner(client, config, on_finding=on_finding).run(self._xss_targets(targets)))
             if config.get("sqli", {}).get("enabled", False):
-                findings.extend(SqliScanner(client, config).run(self._sqli_targets(targets)))
+                findings.extend(SqliScanner(client, config, on_finding=on_finding).run(self._sqli_targets(targets)))
         except RequestBudgetExceeded as error:
             print(f"[!] {error}")
         return findings
@@ -144,6 +148,92 @@ class FuzzApplication:
         if client.error_count:
             print(f"[!] Request errors: {client.error_count} (timeouts: {client.timeout_count})")
         print(f"[*] Wrote: {Path(output_dir) / 'findings.json'}")
+
+
+#bang giao dien 
+class FindingTablePrinter:
+   
+
+    COLUMNS = [
+        ("Time", 19),
+        ("Source", 8),
+        ("Issue type", 33),
+        ("Host", 26),
+        ("Path", 24),
+        ("Insertion point", 22),
+        ("Severity", 9),
+        ("Confidence", 10),
+        ("Comment", 32),
+    ]
+
+    def __init__(self) -> None:
+        self.count = 0
+
+    def show(self, finding: Finding) -> None:
+        if self.count == 0:
+            self._print_header()
+
+        self.count += 1
+        parsed = urlparse(finding.request_url or finding.target.url)
+        host = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else finding.target.url
+        path = parsed.path or finding.target.path or "/"
+
+        row = [
+            datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            "Fuzz",
+            self._issue_type(finding),
+            host,
+            path,
+            self._insertion_point(finding),
+            finding.severity.title(),
+            self._confidence(finding),
+            finding.evidence,
+        ]
+        print(self._row(row), flush=True)
+
+    def finish(self) -> None:
+        if self.count == 0:
+            print("[*] Live findings table: no confirmed findings.")
+        else:
+            print("-" * self._table_width())
+
+    def _print_header(self) -> None:
+        print("")
+        print("=" * self._table_width())
+        print("LIVE FINDINGS")
+        print("=" * self._table_width())
+        print(self._row([name for name, _ in self.COLUMNS]))
+        print("-" * self._table_width())
+
+    def _row(self, values: list[str]) -> str:
+        cells = []
+        for value, (_, width) in zip(values, self.COLUMNS):
+            cells.append(self._short(value, width).ljust(width))
+        return "  ".join(cells)
+
+    def _short(self, value: object, width: int) -> str:
+        text = str(value).replace("\n", " ").replace("\r", " ")
+        return text if len(text) <= width else text[: max(0, width - 3)] + "..."
+
+    def _table_width(self) -> int:
+        return sum(width for _, width in self.COLUMNS) + (len(self.COLUMNS) - 1) * 2
+
+    def _issue_type(self, finding: Finding) -> str:
+        if finding.vuln_type == "xss":
+            return f"Cross-site scripting ({finding.subtype})"
+        if finding.vuln_type == "sqli":
+            return f"SQL injection ({finding.subtype})"
+        return f"{finding.vuln_type} ({finding.subtype})"
+
+    def _insertion_point(self, finding: Finding) -> str:
+        return f"{finding.target.param_location} {finding.target.param_name} parameter"
+
+    def _confidence(self, finding: Finding) -> str:
+        if finding.vuln_type == "xss" and finding.subtype in {"reflected", "stored", "dom"}:
+            return "Certain"
+        if finding.vuln_type == "sqli" and finding.subtype in {"error_based", "union_based"}:
+            return "Certain"
+        return "Firm"
 
 
 def main(argv=None) -> int:
