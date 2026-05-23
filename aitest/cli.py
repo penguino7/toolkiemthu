@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 from urllib.parse import urlparse
 
 from aitool.config import AiConfigLoader
@@ -39,10 +40,18 @@ class AiTestApplication:
         )
         print(f"[*] AI test targets: {len(targets)}")
 
-        sessions = AiIterativeSessionRunner(tool_config, ai_config, verbose=not args.quiet).run_targets(
+        table = AiTestTablePrinter()
+        table.start()
+        sessions = AiIterativeSessionRunner(
+            tool_config,
+            ai_config,
+            verbose=not args.quiet,
+            on_round=table.show,
+        ).run_targets(
             targets,
             rounds=args.rounds,
         )
+        table.finish()
         AiTestReporter().export(sessions, args.out)
 
         print(f"[*] Sessions: {len(sessions)}")
@@ -80,6 +89,73 @@ class AiTestApplication:
                 ],
             },
         }
+
+
+class AiTestTablePrinter:
+    COLUMNS = [
+        ("Time", 19),
+        ("Target", 9),
+        ("Round", 7),
+        ("Point", 34),
+        ("AI attack", 16),
+        ("Payload", 34),
+        ("Status", 8),
+        ("Confirmed", 10),
+        ("Comment", 24),
+    ]
+
+    def __init__(self) -> None:
+        self.count = 0
+        self.started = False
+
+    def start(self) -> None:
+        if self.started:
+            return
+        self.started = True
+        self._print_header()
+
+    def show(self, event: dict) -> None:
+        self.start()
+        self.count += 1
+        target = event.get("target")
+        row = [
+            datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            f"{event.get('target_index')}/{event.get('target_total')}",
+            event.get("round", "-"),
+            getattr(target, "key", "-"),
+            event.get("attack_type", "-"),
+            event.get("payload", "-"),
+            event.get("status", "-"),
+            "yes" if event.get("confirmed") else "no",
+            event.get("comment", "-"),
+        ]
+        print(self._row(row), flush=True)
+
+    def finish(self) -> None:
+        if self.count == 0:
+            print(self._row(["-", "-", "-", "No AI test rounds", "-", "-", "-", "-", "-"]))
+        print("-" * self._table_width())
+
+    def _print_header(self) -> None:
+        print("")
+        print("=" * self._table_width())
+        print("AI ITERATIVE TEST LIVE TABLE")
+        print("=" * self._table_width())
+        print(self._row([name for name, _ in self.COLUMNS]))
+        print("-" * self._table_width())
+
+    def _row(self, values: list[object]) -> str:
+        cells = []
+        for value, (_, width) in zip(values, self.COLUMNS):
+            cells.append(self._short(value, width).ljust(width))
+        return "  ".join(cells)
+
+    def _short(self, value: object, width: int) -> str:
+        text = str(value).replace("\n", " ").replace("\r", " ")
+        return text if len(text) <= width else text[: max(0, width - 3)] + "..."
+
+    def _table_width(self) -> int:
+        return sum(width for _, width in self.COLUMNS) + (len(self.COLUMNS) - 1) * 2
 
 
 def main(argv=None) -> int:

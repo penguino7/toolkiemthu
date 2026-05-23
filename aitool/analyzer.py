@@ -23,13 +23,16 @@ class FindingAnalyzer:
         self.max_payload_chars = int(analysis.get("max_payload_chars", 500))
         self.max_detail_chars = int(analysis.get("max_detail_chars", 1200))
 
-    def analyze_file(self, findings_path: str | Path) -> List[Dict[str, Any]]:
+    def analyze_file(self, findings_path: str | Path, on_analysis=None) -> List[Dict[str, Any]]:
         findings = json.loads(Path(findings_path).read_text(encoding="utf-8-sig"))
         results = []
 
         for index, finding in enumerate(findings[: self.max_findings], start=1):
             print(f"[*] AI analyzing finding {index}/{min(len(findings), self.max_findings)}")
-            results.append(self.analyze_finding(index, finding))
+            analysis = self.analyze_finding(index, finding)
+            results.append(analysis)
+            if on_analysis:
+                on_analysis(analysis)
 
         return results
 

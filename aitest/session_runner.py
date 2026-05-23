@@ -27,10 +27,11 @@ class AiPayloadDecision:
 class AiIterativeSessionRunner:
     """Chạy baseline -> AI payload -> request -> summarize response trong nhiều vòng."""
 
-    def __init__(self, tool_config: dict, ai_config: dict, verbose: bool = True) -> None:
+    def __init__(self, tool_config: dict, ai_config: dict, verbose: bool = True, on_round=None) -> None:
         self.tool_config = tool_config
         self.ai_config = ai_config
         self.verbose = verbose
+        self.on_round = on_round
         self.ai_api = AiApiClient(ai_config)
         self.mutator = RequestMutator()
         self.guard = PayloadGuard()
@@ -78,13 +79,15 @@ class AiIterativeSessionRunner:
                 self._log(f"AI-OUT   source={decision.source} stop=true attack_type={decision.attack_type}")
                 self._log(f"AI-STOP  {decision.reason}")
                 self._log(self._line("-"))
-                session["rounds"].append(
-                    {
-                        "round": round_number,
-                        "stopped_by_ai": True,
-                        "reason": decision.reason,
-                    }
-                )
+                item = {
+                    "round": round_number,
+                    "stopped_by_ai": True,
+                    "attack_type": decision.attack_type,
+                    "payload": "",
+                    "reason": decision.reason,
+                }
+                session["rounds"].append(item)
+                self._emit_round_event(target, index, total, round_number, decision, "-", False, "stopped_by_ai")
                 break
 
             self._log(f"AI-OUT   source={decision.source} stop=false attack_type={decision.attack_type}")
@@ -110,11 +113,14 @@ class AiIterativeSessionRunner:
                 }
                 session["rounds"].append(item)
                 previous_rounds.append(item)
+                self._emit_round_event(target, index, total, round_number, decision, "-", False, item["guard"])
                 break
 
             self._log(f"GUARD    {check.reason}")
             self._log(f"TOOL     Injecting payload into {target.param_location}:{target.param_name}")
             response_summary = self._send_payload_and_summarize(target, decision.payload, marker)
+            signals = response_summary.get("signals", {})
+            confirmed = bool(signals.get("confirmed_signal"))
             item = {
                 "round": round_number,
                 "payload": decision.payload,
@@ -126,11 +132,20 @@ class AiIterativeSessionRunner:
             }
             session["rounds"].append(item)
             previous_rounds.append(item)
+            self._emit_round_event(
+                target,
+                index,
+                total,
+                round_number,
+                decision,
+                response_summary.get("status", "-"),
+                confirmed,
+                "confirmed_signal" if confirmed else "no_signal",
+            )
 
-            signals = response_summary.get("signals", {})
             self._log("DETECT   Analyzing response for SQL errors, marker paths, and confirmed signal")
             self._log_signals(signals)
-            if signals.get("confirmed_signal"):
+            if confirmed:
                 self._log("CONFIRM  Signal found in this round")
                 session["confirmed_signals"].append(
                     {
@@ -319,6 +334,34 @@ class AiIterativeSessionRunner:
             "type_hint": target.type_hint,
             "sample_value": target.sample_value,
         }
+
+    def _emit_round_event(
+        self,
+        target: FuzzTarget,
+        target_index: int,
+        target_total: int,
+        round_number: int,
+        decision: AiPayloadDecision,
+        status: object,
+        confirmed: bool,
+        comment: str,
+    ) -> None:
+        if not self.on_round:
+            return
+        self.on_round(
+            {
+                "target_index": target_index,
+                "target_total": target_total,
+                "round": round_number,
+                "target": target,
+                "attack_type": decision.attack_type,
+                "source": decision.source,
+                "payload": decision.payload,
+                "status": status,
+                "confirmed": confirmed,
+                "comment": comment,
+            }
+        )
 
     def _log(self, message: str) -> None:
         if self.verbose:

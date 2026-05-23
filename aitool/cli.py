@@ -4,6 +4,7 @@ import argparse
 import os
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 from .analyzer import FindingAnalyzer
@@ -54,7 +55,10 @@ class AiApplication:
             parser.error("findings is required unless --test-provider is used")
 
         output_dir = Path(config.get("output_dir", "ai-output"))
-        analyses = FindingAnalyzer(config).analyze_file(args.findings)
+        table = AiAnalysisTablePrinter()
+        table.start()
+        analyses = FindingAnalyzer(config).analyze_file(args.findings, on_analysis=table.show)
+        table.finish()
         self.reporter.export(analyses, output_dir)
 
         print(f"[*] AI analyses: {len(analyses)}")
@@ -127,6 +131,87 @@ class AiApplication:
         if reasoning_tokens is not None:
             parts.append(f"reasoning={reasoning_tokens}")
         return " ".join(parts) or "unavailable"
+
+
+class AiAnalysisTablePrinter:
+    COLUMNS = [
+        ("Time", 19),
+        ("Finding", 8),
+        ("Source issue", 28),
+        ("Path", 24),
+        ("Param", 18),
+        ("AI confirmed", 12),
+        ("AI severity", 11),
+        ("Confidence", 10),
+        ("CWE", 10),
+        ("Comment", 38),
+    ]
+
+    def __init__(self) -> None:
+        self.count = 0
+        self.started = False
+
+    def start(self) -> None:
+        if self.started:
+            return
+        self.started = True
+        self._print_header()
+
+    def show(self, analysis: dict) -> None:
+        self.start()
+        self.count += 1
+        source = analysis.get("source_finding", {})
+        ai_result = analysis.get("ai_result", {})
+
+        row = [
+            datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+            f"#{analysis.get('index', self.count)}",
+            self._source_issue(source),
+            source.get("path", "-"),
+            self._param(source),
+            "yes" if ai_result.get("confirmed") else "no",
+            ai_result.get("severity", "-"),
+            ai_result.get("confidence", "-"),
+            ai_result.get("cwe") or "-",
+            ai_result.get("reason_vi", "-"),
+        ]
+        print(self._row(row), flush=True)
+
+    def finish(self) -> None:
+        if self.count == 0:
+            print(self._row(["-", "-", "No AI analyses", "-", "-", "-", "-", "-", "-", "-"]))
+        print("-" * self._table_width())
+
+    def _print_header(self) -> None:
+        print("")
+        print("=" * self._table_width())
+        print("AI ANALYSIS LIVE TABLE")
+        print("=" * self._table_width())
+        print(self._row([name for name, _ in self.COLUMNS]))
+        print("-" * self._table_width())
+
+    def _source_issue(self, finding: dict) -> str:
+        vuln_type = finding.get("vuln_type", "unknown")
+        subtype = finding.get("subtype", "unknown")
+        return f"{vuln_type} ({subtype})"
+
+    def _param(self, finding: dict) -> str:
+        location = finding.get("location", "-")
+        param = finding.get("param", "-")
+        return f"{location}:{param}"
+
+    def _row(self, values: list[object]) -> str:
+        cells = []
+        for value, (_, width) in zip(values, self.COLUMNS):
+            cells.append(self._short(value, width).ljust(width))
+        return "  ".join(cells)
+
+    def _short(self, value: object, width: int) -> str:
+        text = str(value).replace("\n", " ").replace("\r", " ")
+        return text if len(text) <= width else text[: max(0, width - 3)] + "..."
+
+    def _table_width(self) -> int:
+        return sum(width for _, width in self.COLUMNS) + (len(self.COLUMNS) - 1) * 2
 
 
 def main(argv=None) -> int:
