@@ -151,7 +151,6 @@ class AiIterativeSessionRunner:
         try:
             raw = self.ai_api.complete(
                 [
-                    ChatMessage(role="system", content="Bạn là AI hỗ trợ test XSS/SQLi trong lab. Chỉ trả JSON."),
                     ChatMessage(role="user", content=self._prompt(target, marker, baseline, previous_rounds)),
                 ]
             )
@@ -161,18 +160,31 @@ class AiIterativeSessionRunner:
 
     def _prompt(self, target: FuzzTarget, marker: str, baseline: dict, previous_rounds: List[dict]) -> str:
         data = {
-            "task": "Đề xuất đúng 1 payload tiếp theo.",
+            "role": "Bạn là AI hỗ trợ kiểm thử XSS/SQLi trong lab được phép kiểm thử.",
+            "goal": "Chọn đúng 1 payload tiếp theo cho đúng endpoint và đúng tham số đang test.",
             "rules": [
-                "Chỉ trả JSON.",
-                "Không dùng payload phá hoại dữ liệu hoặc hệ thống.",
-                "UNION nên dùng marker theo cột: MARKER_C01, MARKER_C02...",
-                "Nếu không cần test tiếp thì stop=true.",
+                "Chỉ trả về JSON hợp lệ, không markdown, không giải thích ngoài JSON.",
+                "Chỉ kiểm thử XSS và SQL injection. Không đề xuất lỗi khác.",
+                "Không dùng payload phá hoại dữ liệu hoặc hệ thống: DROP, DELETE, UPDATE, INSERT, OUTFILE, LOAD_FILE, RCE.",
+                "Mỗi vòng chỉ sinh 1 payload ngắn, rõ mục đích, phù hợp với kiểu dữ liệu của tham số.",
+                "Nếu target có type_hint int/float hoặc param tên id, news_id, category_id thì ưu tiên SQLi.",
+                "Nếu target là search, keyword, q, author, content, bio thì có thể ưu tiên XSS hoặc SQLi string.",
+                "Nếu baseline đã có lỗi SQL hoặc vòng trước đã confirmed_signal=true thì nên stop=true.",
+                "Nếu test UNION, payload phải dùng marker theo từng cột: MARKER_C01, MARKER_C02...",
+                "Không lặp lại payload đã thử trong previous_rounds.",
+            ],
+            "strategy": [
+                "Vòng đầu nên dùng payload nhẹ để kiểm tra phản ứng: quote SQLi hoặc marker XSS.",
+                "Nếu có SQL error, vòng sau có thể dùng ORDER BY hoặc UNION để xác nhận rõ hơn.",
+                "Nếu dùng UNION, hãy thử số cột hợp lý dựa trên previous_rounds; nếu chưa biết, dùng ORDER BY trước.",
+                "Nếu response chỉ echo lại payload trong field debug/sql/request thì chưa coi là khai thác thành công.",
+                "confirmed_signal thật là marker xuất hiện trong dữ liệu render/JSON data hoặc có lỗi DB rõ ràng.",
             ],
             "expected_json": {
                 "payload": "string",
                 "attack_type": "sqli_error|sqli_order_by|sqli_union|xss_reflection|stop",
-                "reason": "lý do chọn payload",
-                "expected_signal": "dấu hiệu mong đợi",
+                "reason": "lý do ngắn gọn vì sao chọn payload này",
+                "expected_signal": "dấu hiệu mong đợi trong response",
                 "stop": False,
             },
             "marker": marker,

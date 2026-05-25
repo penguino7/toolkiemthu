@@ -6,7 +6,6 @@ from typing import Any, Dict, List
 
 from .api_client import AiApiClient, ChatMessage
 from .prompts import build_finding_prompt
-from .prompts import SYSTEM_PROMPT
 from .redactor import DataRedactor, trim_text
 
 
@@ -67,11 +66,7 @@ class FindingAnalyzer:
         return cleaned
 
     def _ask_ai(self, prompt: str) -> str:
-        messages = [
-            ChatMessage(role="system", content=SYSTEM_PROMPT),
-            ChatMessage(role="user", content=prompt),
-        ]
-        return self.api_client.complete(messages)
+        return self.api_client.complete([ChatMessage(role="user", content=prompt)])
 
 
 REQUIRED_AI_KEYS = {

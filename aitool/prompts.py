@@ -4,12 +4,6 @@ import json
 from typing import Any, Dict
 
 
-SYSTEM_PROMPT = """Bạn là trợ lý phân tích kết quả kiểm thử bảo mật web.
-Chỉ dựa trên evidence được cung cấp, không tự bịa request/response không có trong dữ liệu.
-Trả lời duy nhất bằng JSON hợp lệ, không markdown, không giải thích ngoài JSON.
-"""
-
-
 def build_finding_prompt(finding: Dict[str, Any], language: str = "vi") -> str:
     """Tạo prompt cho một finding đã được fuzztool ghi nhận."""
 
@@ -27,13 +21,18 @@ def build_finding_prompt(finding: Dict[str, Any], language: str = "vi") -> str:
     }
 
     payload = {
-        "task": "Phân tích một finding bảo mật web và chuẩn hóa kết luận.",
+        "role": "Bạn là AI phân tích kết quả kiểm thử bảo mật web cho lab được phép kiểm thử.",
+        "task": "Đọc một finding do fuzztool ghi nhận, đánh giá lại evidence và chuẩn hóa kết luận.",
         "language": language,
         "rules": [
+            "Chỉ trả về JSON hợp lệ, không markdown, không giải thích ngoài JSON.",
+            "Chỉ dựa trên evidence được cung cấp, không tự bịa request/response không có trong dữ liệu.",
             "Nếu evidence chưa đủ, đặt confirmed=false và giảm confidence.",
             "Nếu là XSS thì ưu tiên CWE-79.",
             "Nếu là SQL injection thì ưu tiên CWE-89.",
             "Với union_based SQLi, ưu tiên matched_paths/ignored_paths để đánh giá marker có nằm trong dữ liệu thật hay chỉ nằm trong debug/echo.",
+            "Nếu marker chỉ xuất hiện trong payload, sql, request, raw_sql, trace, stack thì coi là có rủi ro false positive.",
+            "Nếu finding có response_excerpt hoặc matched_patterns rõ ràng thì phải trích ý chính trong reason_vi.",
             "possible_cve chỉ điền khi dữ liệu có nêu rõ sản phẩm và phiên bản cụ thể.",
             "Không tạo CVE giả.",
         ],
