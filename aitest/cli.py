@@ -99,7 +99,7 @@ class AiTestTablePrinter:
         ("AI attack", 16),
         ("Payload", 34),
         ("Status", 8),
-        ("Confirmed", 10),
+        ("Proof", 10),
         ("Reason", 42),
         ("Comment", 34),
     ]
@@ -122,7 +122,7 @@ class AiTestTablePrinter:
             event.get("attack_type", "-"),
             event.get("payload", "-"),
             event.get("status", "-"),
-            "yes" if event.get("confirmed") else "no",
+            "yes" if event.get("proof") or event.get("confirmed") else "no",
             event.get("reason", "-"),
             event.get("comment", "-"),
         ]

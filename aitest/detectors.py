@@ -31,21 +31,29 @@ class AiTestDetectors:
         content_type = exchange.headers.get("content-type", "")
         marker_info = self.marker_paths(text, marker, content_type)
         sql_errors = self.sql_error_patterns(text)
+        visible_columns = self.visible_columns(text, marker)
         compact = self.compact_text(text)
         marker_index = compact.find(marker)
         marker_in_html = marker in text and "html" in content_type.lower()
+        marker_in_data = bool(marker_info.get("matched_paths"))
+        union_marker_confirmed = bool(visible_columns) and (marker_in_data or marker_in_html)
 
         return {
             "sql_error_patterns": sql_errors,
+            "sql_error_confirmed": bool(sql_errors),
             "marker_in_response": marker in text,
             "marker_in_html": marker_in_html,
-            "marker_in_data": bool(marker_info.get("matched_paths")),
+            "marker_in_data": marker_in_data,
             "matched_paths": marker_info.get("matched_paths", []),
             "ignored_paths": marker_info.get("ignored_paths", []),
-            "visible_columns": self.visible_columns(text, marker),
+            "visible_columns": visible_columns,
+            "union_marker_confirmed": union_marker_confirmed,
             "marker_excerpt": self._excerpt(compact, marker_index, 300) if marker_index >= 0 else "",
             "xss_reflection": marker in text and "html" in content_type.lower(),
-            "confirmed_signal": bool(marker_info.get("matched_paths")) or bool(sql_errors) or marker_in_html,
+            "xss_executed": False,
+            "exploit_proof": union_marker_confirmed,
+            "proof_type": "union_marker" if union_marker_confirmed else "",
+            "confirmed_signal": bool(sql_errors) or marker_in_data or marker_in_html,
         }
 
     def sql_error_patterns(self, text: str) -> List[str]:
