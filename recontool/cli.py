@@ -39,6 +39,7 @@ class ReconApplication:
 
         records = self._collect_records(config)
         records = self._dedupe_records(records, config)
+        ReconEndpointTablePrinter().show(records)
         self.exporter.export_all(records, RECON_OUTPUT_DIR)
 
         self._print_outputs()
@@ -82,6 +83,92 @@ class ReconApplication:
     def _print_outputs(self) -> None:
         print(f"[+] Đã lưu file: {RECON_OUTPUT_DIR / 'inventory.json'}")
         print(f"[+] Đã lưu file: {RECON_OUTPUT_DIR / 'params.txt'}")
+
+
+class ReconEndpointTablePrinter:
+    COLUMNS = [
+        ("No", 4),
+        ("Method", 6),
+        ("Endpoint/url", 34),
+        ("Param", 18),
+        ("Where", 8),
+        ("Type", 8),
+        ("Sample", 20),
+        ("Status", 8),
+        ("Source", 14),
+        ("Seen", 5),
+    ]
+
+    def show(self, records: list[EndpointRecord]) -> None:
+        self._print_header()
+
+        row_number = 0
+        for record in records:
+            params = sorted(record.params.values(), key=lambda param: param.key)
+            if not params:
+                row_number += 1
+                self._print_row(row_number, record, None)
+                continue
+
+            for param in params:
+                row_number += 1
+                self._print_row(row_number, record, param)
+
+        if row_number == 0:
+            print(self._row(["-", "-", "No endpoint collected", "-", "-", "-", "-", "-", "-", "-"]))
+        print("-" * self._table_width())
+
+    def _print_header(self) -> None:
+        print("")
+        print("=" * self._table_width())
+        print("RECON ENDPOINT INVENTORY")
+        print("=" * self._table_width())
+        print(self._row([name for name, _ in self.COLUMNS]))
+        print("-" * self._table_width())
+
+    def _print_row(self, row_number: int, record: EndpointRecord, param) -> None:
+        row = [
+            row_number,
+            record.method,
+            record.canonical_path or record.path or record.url,
+            param.name if param else "-",
+            param.location if param else "-",
+            param.type_hint if param else "-",
+            self._sample(param),
+            ",".join(str(status) for status in record.statuses) or "-",
+            self._source(record),
+            record.seen_count,
+        ]
+        print(self._row(row), flush=True)
+
+    def _sample(self, param) -> str:
+        if not param or not param.sample_values:
+            return "-"
+        return ", ".join(param.sample_values[:2])
+
+    def _source(self, record: EndpointRecord) -> str:
+        sources = []
+        for source in record.source_tools:
+            if "playwright" in source:
+                sources.append("dynamic")
+            elif "static" in source:
+                sources.append("static")
+            else:
+                sources.append(source)
+        return ",".join(sorted(set(sources))) or "-"
+
+    def _row(self, values: list[object]) -> str:
+        cells = []
+        for value, (_, width) in zip(values, self.COLUMNS):
+            cells.append(self._short(value, width).ljust(width))
+        return "  ".join(cells)
+
+    def _short(self, value: object, width: int) -> str:
+        text = str(value).replace("\n", " ").replace("\r", " ")
+        return text if len(text) <= width else text[: max(0, width - 3)] + "..."
+
+    def _table_width(self) -> int:
+        return sum(width for _, width in self.COLUMNS) + (len(self.COLUMNS) - 1) * 2
 
 
 def main(argv=None) -> int:
