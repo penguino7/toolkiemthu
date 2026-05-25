@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from toolcli.table import ConsoleTable
+
 from .analyzer import FindingAnalyzer
 from .api_client import AiApiClient, ChatMessage
 from .config import AiConfigLoader
@@ -149,16 +151,12 @@ class AiAnalysisTablePrinter:
 
     def __init__(self) -> None:
         self.count = 0
-        self.started = False
+        self.table = ConsoleTable("AI ANALYSIS LIVE TABLE", self.COLUMNS)
 
     def start(self) -> None:
-        if self.started:
-            return
-        self.started = True
-        self._print_header()
+        self.table.start()
 
     def show(self, analysis: dict) -> None:
-        self.start()
         self.count += 1
         source = analysis.get("source_finding", {})
         ai_result = analysis.get("ai_result", {})
@@ -175,20 +173,12 @@ class AiAnalysisTablePrinter:
             ai_result.get("cwe") or "-",
             ai_result.get("reason_vi", "-"),
         ]
-        print(self._row(row), flush=True)
+        self.table.print_row(row)
 
     def finish(self) -> None:
         if self.count == 0:
-            print(self._row(["-", "-", "No AI analyses", "-", "-", "-", "-", "-", "-", "-"]))
-        print("-" * self._table_width())
-
-    def _print_header(self) -> None:
-        print("")
-        print("=" * self._table_width())
-        print("AI ANALYSIS LIVE TABLE")
-        print("=" * self._table_width())
-        print(self._row([name for name, _ in self.COLUMNS]))
-        print("-" * self._table_width())
+            self.table.print_row(["-", "-", "No AI analyses", "-", "-", "-", "-", "-", "-", "-"])
+        self.table.finish()
 
     def _source_issue(self, finding: dict) -> str:
         vuln_type = finding.get("vuln_type", "unknown")
@@ -199,19 +189,6 @@ class AiAnalysisTablePrinter:
         location = finding.get("location", "-")
         param = finding.get("param", "-")
         return f"{location}:{param}"
-
-    def _row(self, values: list[object]) -> str:
-        cells = []
-        for value, (_, width) in zip(values, self.COLUMNS):
-            cells.append(self._short(value, width).ljust(width))
-        return "  ".join(cells)
-
-    def _short(self, value: object, width: int) -> str:
-        text = str(value).replace("\n", " ").replace("\r", " ")
-        return text if len(text) <= width else text[: max(0, width - 3)] + "..."
-
-    def _table_width(self) -> int:
-        return sum(width for _, width in self.COLUMNS) + (len(self.COLUMNS) - 1) * 2
 
 
 def main(argv=None) -> int:

@@ -52,7 +52,7 @@ class SqliScanner:
         self.payloads = self._load_payloads()
 
         sqli_config = config.get("sqli", {})
-        self.union_max_columns = int(sqli_config.get("union_max_columns", 12))
+        self.union_max_columns = int(sqli_config.get("union_max_columns", 20))
         self.union_marker_prefix = str(sqli_config.get("union_marker_prefix", "FUZZUNION"))
 
     def run(self, targets: list[FuzzTarget]) -> list[Finding]:
@@ -265,6 +265,8 @@ class SqliScanner:
             "marker": marker,
             "matched_paths": matched_paths,
             "ignored_paths": ignored_paths,
+            "visible_columns": self._visible_columns(" ".join(matched_values), marker),
+            "matched_values": matched_values[:5],
             "response_excerpt": self._compact(matched_values[0])[:500],
         }
 
@@ -311,8 +313,13 @@ class SqliScanner:
             "marker": marker,
             "matched_paths": [],
             "ignored_paths": [],
+            "visible_columns": self._visible_columns(compact, marker),
             "response_excerpt": self._excerpt(compact, marker_index, 500),
         }
+
+    def _visible_columns(self, text: str, marker: str) -> list[str]:
+        pattern = re.escape(marker) + r"_C(\d+)"
+        return sorted(set(re.findall(pattern, text or "")), key=int)
 
     def _compact(self, text: str) -> str:
         without_tags = re.sub(r"<[^>]+>", " ", text or "")
@@ -327,7 +334,7 @@ class SqliScanner:
         return f"{self.union_marker_prefix}_{uuid4().hex[:8]}"
 
     def _union_columns(self, marker: str, column_count: int) -> str:
-        return ",".join([f"'{marker}'" for _ in range(column_count)])
+        return ",".join(f"'{marker}_C{index:02d}'" for index in range(1, column_count + 1))
 
     def _union_targets_first(self, targets: list[FuzzTarget]) -> list[FuzzTarget]:
         def score(target: FuzzTarget) -> tuple[int, int, int, str]:

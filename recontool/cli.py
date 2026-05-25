@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from toolcli.table import ConsoleTable
+
 from .config import ConfigLoader
 from .crawlers.playwright_dynamic import DynamicCrawler
 from .crawlers.static_html import StaticHtmlCrawler
@@ -99,9 +101,11 @@ class ReconEndpointTablePrinter:
         ("Seen", 5),
     ]
 
-    def show(self, records: list[EndpointRecord]) -> None:
-        self._print_header()
+    def __init__(self) -> None:
+        self.table = ConsoleTable("RECON ENDPOINT INVENTORY", self.COLUMNS)
 
+    def show(self, records: list[EndpointRecord]) -> None:
+        self.table.start()
         row_number = 0
         for record in records:
             params = sorted(record.params.values(), key=lambda param: param.key)
@@ -115,16 +119,8 @@ class ReconEndpointTablePrinter:
                 self._print_row(row_number, record, param)
 
         if row_number == 0:
-            print(self._row(["-", "-", "No endpoint collected", "-", "-", "-", "-", "-", "-", "-"]))
-        print("-" * self._table_width())
-
-    def _print_header(self) -> None:
-        print("")
-        print("=" * self._table_width())
-        print("RECON ENDPOINT INVENTORY")
-        print("=" * self._table_width())
-        print(self._row([name for name, _ in self.COLUMNS]))
-        print("-" * self._table_width())
+            self.table.print_row(["-", "-", "No endpoint collected", "-", "-", "-", "-", "-", "-", "-"])
+        self.table.finish()
 
     def _print_row(self, row_number: int, record: EndpointRecord, param) -> None:
         row = [
@@ -139,7 +135,7 @@ class ReconEndpointTablePrinter:
             self._source(record),
             record.seen_count,
         ]
-        print(self._row(row), flush=True)
+        self.table.print_row(row)
 
     def _sample(self, param) -> str:
         if not param or not param.sample_values:
@@ -156,19 +152,6 @@ class ReconEndpointTablePrinter:
             else:
                 sources.append(source)
         return ",".join(sorted(set(sources))) or "-"
-
-    def _row(self, values: list[object]) -> str:
-        cells = []
-        for value, (_, width) in zip(values, self.COLUMNS):
-            cells.append(self._short(value, width).ljust(width))
-        return "  ".join(cells)
-
-    def _short(self, value: object, width: int) -> str:
-        text = str(value).replace("\n", " ").replace("\r", " ")
-        return text if len(text) <= width else text[: max(0, width - 3)] + "..."
-
-    def _table_width(self) -> int:
-        return sum(width for _, width in self.COLUMNS) + (len(self.COLUMNS) - 1) * 2
 
 
 def main(argv=None) -> int:

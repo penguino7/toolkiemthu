@@ -5,6 +5,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from aitool.config import AiConfigLoader
+from toolcli.table import ConsoleTable
 
 from .reporter import AiTestReporter
 from .session_runner import AiIterativeSessionRunner
@@ -21,7 +22,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rounds", type=int, default=4, help="Số vòng AI cho mỗi target")
     parser.add_argument("--include-post", action="store_true", help="Cho phép test body/json POST")
     parser.add_argument("--max-requests", type=int, default=80, help="Giới hạn request")
-    parser.add_argument("--quiet", action="store_true", help="Không in log chi tiết khi chạy")
     return parser
 
 
@@ -45,7 +45,6 @@ class AiTestApplication:
         sessions = AiIterativeSessionRunner(
             tool_config,
             ai_config,
-            verbose=not args.quiet,
             on_round=table.show,
         ).run_targets(
             targets,
@@ -102,21 +101,17 @@ class AiTestTablePrinter:
         ("Status", 8),
         ("Confirmed", 10),
         ("Reason", 42),
-        ("Comment", 24),
+        ("Comment", 34),
     ]
 
     def __init__(self) -> None:
         self.count = 0
-        self.started = False
+        self.table = ConsoleTable("AI ITERATIVE TEST LIVE TABLE", self.COLUMNS)
 
     def start(self) -> None:
-        if self.started:
-            return
-        self.started = True
-        self._print_header()
+        self.table.start()
 
     def show(self, event: dict) -> None:
-        self.start()
         self.count += 1
         target = event.get("target")
         row = [
@@ -131,33 +126,12 @@ class AiTestTablePrinter:
             event.get("reason", "-"),
             event.get("comment", "-"),
         ]
-        print(self._row(row), flush=True)
+        self.table.print_row(row)
 
     def finish(self) -> None:
         if self.count == 0:
-            print(self._row(["-", "-", "-", "No AI test rounds", "-", "-", "-", "-", "-", "-"]))
-        print("-" * self._table_width())
-
-    def _print_header(self) -> None:
-        print("")
-        print("=" * self._table_width())
-        print("AI ITERATIVE TEST LIVE TABLE")
-        print("=" * self._table_width())
-        print(self._row([name for name, _ in self.COLUMNS]))
-        print("-" * self._table_width())
-
-    def _row(self, values: list[object]) -> str:
-        cells = []
-        for value, (_, width) in zip(values, self.COLUMNS):
-            cells.append(self._short(value, width).ljust(width))
-        return "  ".join(cells)
-
-    def _short(self, value: object, width: int) -> str:
-        text = str(value).replace("\n", " ").replace("\r", " ")
-        return text if len(text) <= width else text[: max(0, width - 3)] + "..."
-
-    def _table_width(self) -> int:
-        return sum(width for _, width in self.COLUMNS) + (len(self.COLUMNS) - 1) * 2
+            self.table.print_row(["-", "-", "-", "No AI test rounds", "-", "-", "-", "-", "-", "-"])
+        self.table.finish()
 
 
 def main(argv=None) -> int:

@@ -31,15 +31,21 @@ class AiTestDetectors:
         content_type = exchange.headers.get("content-type", "")
         marker_info = self.marker_paths(text, marker, content_type)
         sql_errors = self.sql_error_patterns(text)
+        compact = self.compact_text(text)
+        marker_index = compact.find(marker)
+        marker_in_html = marker in text and "html" in content_type.lower()
 
         return {
             "sql_error_patterns": sql_errors,
             "marker_in_response": marker in text,
+            "marker_in_html": marker_in_html,
             "marker_in_data": bool(marker_info.get("matched_paths")),
             "matched_paths": marker_info.get("matched_paths", []),
             "ignored_paths": marker_info.get("ignored_paths", []),
+            "visible_columns": self.visible_columns(text, marker),
+            "marker_excerpt": self._excerpt(compact, marker_index, 300) if marker_index >= 0 else "",
             "xss_reflection": marker in text and "html" in content_type.lower(),
-            "confirmed_signal": bool(marker_info.get("matched_paths")) or bool(sql_errors),
+            "confirmed_signal": bool(marker_info.get("matched_paths")) or bool(sql_errors) or marker_in_html,
         }
 
     def sql_error_patterns(self, text: str) -> List[str]:
@@ -89,3 +95,12 @@ class AiTestDetectors:
     def compact_text(self, text: str) -> str:
         no_tags = re.sub(r"<[^>]+>", " ", text or "")
         return re.sub(r"\s+", " ", no_tags).strip()
+
+    def visible_columns(self, text: str, marker: str) -> List[str]:
+        pattern = re.escape(marker) + r"_C(\d+)"
+        return sorted(set(re.findall(pattern, text or "")), key=int)
+
+    def _excerpt(self, text: str, center_index: int, size: int) -> str:
+        start = max(0, center_index - 120)
+        end = min(len(text), start + size)
+        return text[start:end]

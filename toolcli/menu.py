@@ -133,7 +133,6 @@ class ToolCliMenu:
             self.state.aitest_max_targets,
             "--rounds",
             self.state.aitest_rounds,
-            "--quiet",
         ]
         self.runner.run_python_module("ai-iterative-test", "aitest", args)
 

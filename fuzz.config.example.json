@@ -48,7 +48,7 @@
     "error_based": true,
     "boolean_based": false,
     "union_based": false,
-    "union_max_columns": 12,
+    "union_max_columns": 20,
     "union_marker_prefix": "FUZZUNION"
   },
   "output_dir": "fuzz-output"
