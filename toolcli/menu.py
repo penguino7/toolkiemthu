@@ -152,7 +152,7 @@ class ToolCliMenu:
     def edit_tool_settings(self) -> None:
         print("")
         print("Cài đặt recon/fuzz. Bỏ trống để giữ giá trị hiện tại.")
-        self.state.base_url = self._ask("Base URL", self.state.base_url)
+        self.state.base_url = self._normalize_base_url(self._ask("Base URL", self.state.base_url))
         self.state.fuzz_output = self._ask("Fuzz output", self.state.fuzz_output)
         self.state.findings_path = self._ask("Findings path", self.state.findings_path)
         self.state.max_requests = self._ask("Max requests", self.state.max_requests)
@@ -172,6 +172,12 @@ class ToolCliMenu:
     def _ask(self, label: str, current: str) -> str:
         value = input(f"{label} [{current or '-'}]: ").strip()
         return value or current
+
+    def _normalize_base_url(self, value: str) -> str:
+        text = value.strip().rstrip("/")
+        if text and "://" not in text:
+            text = "http://" + text
+        return text
 
 
 def main() -> int:

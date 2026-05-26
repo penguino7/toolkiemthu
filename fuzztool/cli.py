@@ -73,6 +73,7 @@ class FuzzApplication:
         if args.sqli:
             self._enable_all_sqli(config, args.max_requests)
 
+        sync_scope_with_base_url(config)
         return config
 
     def _enable_all_xss(self, config: dict) -> None:
@@ -229,3 +230,18 @@ class FindingTablePrinter:
 
 def main(argv=None) -> int:
     return FuzzApplication().run(argv)
+
+
+def sync_scope_with_base_url(config: dict) -> None:
+    """Base URL la target chinh, nen host cua no phai nam trong scope."""
+    base_url = str(config.get("base_url", "")).rstrip("/")
+    config["base_url"] = base_url
+
+    host = (urlparse(base_url).hostname or "").lower()
+    if not host:
+        return
+
+    include_hosts = config.setdefault("scope", {}).setdefault("include_hosts", [])
+    normalized_hosts = {str(item).lower() for item in include_hosts}
+    if host not in normalized_hosts:
+        include_hosts.append(host)

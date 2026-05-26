@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from urllib.parse import urlparse
 
 from toolcli.table import ConsoleTable
 
@@ -51,12 +52,13 @@ class ReconApplication:
         config = self.config_loader.load(args.config)
 
         if args.base_url:
-            config["base_url"] = args.base_url
+            config["base_url"] = args.base_url.rstrip("/")
         if args.seed:
             config["seeds"] = args.seed
         if args.dedupe_mode:
             config.setdefault("dedupe", {})["mode"] = args.dedupe_mode
 
+        sync_scope_with_base_url(config)
         return config
 
     def _collect_records(self, config: dict) -> list[EndpointRecord]:
@@ -156,3 +158,18 @@ class ReconEndpointTablePrinter:
 
 def main(argv=None) -> int:
     return ReconApplication().run(argv)
+
+
+def sync_scope_with_base_url(config: dict) -> None:
+    """Base URL la target chinh, nen host cua no phai nam trong scope."""
+    base_url = str(config.get("base_url", "")).rstrip("/")
+    config["base_url"] = base_url
+
+    host = (urlparse(base_url).hostname or "").lower()
+    if not host:
+        return
+
+    include_hosts = config.setdefault("scope", {}).setdefault("include_hosts", [])
+    normalized_hosts = {str(item).lower() for item in include_hosts}
+    if host not in normalized_hosts:
+        include_hosts.append(host)
