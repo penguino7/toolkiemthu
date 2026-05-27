@@ -53,12 +53,11 @@ class RequestMutator:
         body_pairs = []
 
         for param in target.record.get("params", []):
-            if param.get("location") != "body":
+            if self._param_location(param) != "body":
                 continue
 
             name = str(param.get("name", ""))
-            sample_values = param.get("sample_values", [])
-            sample_value = str(sample_values[0]) if sample_values else ""
+            sample_value = self._param_sample(param)
             value = payload if name == target.param_name else sample_value
             body_pairs.append((name, value))
 
@@ -73,12 +72,11 @@ class RequestMutator:
         json_data = {}
 
         for param in target.record.get("params", []):
-            if param.get("location") != "json":
+            if self._param_location(param) != "json":
                 continue
 
             name = str(param.get("name", ""))
-            sample_values = param.get("sample_values", [])
-            sample_value = str(sample_values[0]) if sample_values else ""
+            sample_value = self._param_sample(param)
             json_data[name] = payload if name == target.param_name else sample_value
 
         if target.param_name not in json_data:
@@ -87,3 +85,12 @@ class RequestMutator:
         headers = dict(target.request_headers)
         headers["content-type"] = "application/json"
         return target.method, target.url, json.dumps(json_data), headers
+
+    def _param_location(self, param: dict) -> str:
+        return str(param.get("in") or param.get("location") or "")
+
+    def _param_sample(self, param: dict) -> str:
+        if "sample" in param:
+            return str(param.get("sample", ""))
+        sample_values = param.get("sample_values", [])
+        return str(sample_values[0]) if sample_values else ""

@@ -127,7 +127,7 @@ flowchart TD
 ```mermaid
 flowchart TD
     A[Record sau dedupe] --> B[ReconExporter.export_all]
-    B --> C[inventory.json đầy đủ cho tool khác đọc]
+    B --> C[inventory.json gọn cho fuzz/AI đọc]
     B --> D[params.txt danh sách param nhanh]
 ```
 

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, List
 from uuid import uuid4
 
-from aitool.api_client import AiApiClient, ChatMessage
+from aicore.api_client import AiApiClient, ChatMessage
 from fuzztool.http_client import FuzzHttpClient, RequestBudgetExceeded
 from fuzztool.models import FuzzTarget
 from fuzztool.mutator import RequestMutator

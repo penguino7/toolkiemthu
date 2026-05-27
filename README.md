@@ -107,11 +107,10 @@ Menu sẽ hiện các lựa chọn bằng số:
 2. Chạy fuzz XSS
 3. Chạy fuzz SQLi
 4. Chạy fuzz XSS + SQLi
-5. Chạy AI analysis
+5. Chạy AI exploit proof
 6. Cài đặt recon/fuzz
 7. Cài đặt AI
 8. Kiểm tra AI provider/API key
-9. Chạy AI iterative test
 0. Thoát
 ```
 
@@ -158,6 +157,30 @@ recon-output/inventory.json
 recon-output/params.txt
 ```
 
+`inventory.json` duoc giu gon de lam dau vao cho fuzz va AI. Moi endpoint chi can URL, method, path, source va danh sach param:
+
+```json
+{
+  "base_url": "http://127.0.0.1:12001",
+  "endpoints": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:12001/search.php?q=test",
+      "path": "/search.php",
+      "source": "dynamic",
+      "params": [
+        {
+          "name": "q",
+          "in": "query",
+          "type": "string",
+          "sample": "test"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ## Chạy Fuzz
 
 Fuzztool đọc file `inventory.json` sinh bởi recontool.
@@ -196,11 +219,11 @@ fuzz-output/findings.json
 
 `findings` chỉ chứa kết quả đã có bằng chứng. Với XSS, tool dùng Playwright mở URL trong browser thật và chỉ ghi khi bắt được `alert()`/dialog chứa marker của payload. Payload chỉ được phản xạ trong HTML/JSON hoặc chỉ render ra DOM nhưng không thực thi sẽ không được ghi vào `findings`.
 
-## Chạy AI Iterative Test
+## Chạy AI Exploit Proof
 
-Module này chạy riêng để AI gợi ý payload theo nhiều vòng. Tool vẫn kiểm soát payload, scope và request.
+Module chính của phần AI là `aitest`. Nó chạy riêng để AI gợi ý payload theo nhiều vòng, đọc response, rồi tạo exploit proof an toàn bằng marker/alert. Tool vẫn kiểm soát payload, scope và request.
 
-Trong menu, chọn `9. Chạy AI iterative test`.
+Trong menu, chọn `5. Chạy AI exploit proof`.
 
 Muốn đổi số endpoint hoặc số vòng test thì vào `7. Cài đặt AI`, chỉnh `AI test max targets` và `AI test rounds`.
 
@@ -210,23 +233,7 @@ Output:
 aitest-output/sessions.json
 ```
 
-`aitest` không sửa `fuzz-output/findings.json`; đây là session log để đọc quá trình AI đề xuất payload và response từng vòng.
-
-## Chạy AI Analysis
-
-AI tool là bước hậu xử lý, chỉ đọc `findings.json` và sinh report riêng. Nó không sửa `recontool` hoặc `fuzztool`.
-
-Chạy AI analysis bằng API đã cấu hình trong `ai.config.example.json`:
-
-```bash
-python -B -m aitool fuzz-output/findings.json
-```
-
-Output:
-
-```text
-ai-output/ai-report.json
-```
+`aitest` không sửa `fuzz-output/findings.json`; đây là session log để đọc quá trình AI đề xuất payload, đọc response và đi tới proof từng vòng.
 
 Cấu hình AI nằm ở:
 
@@ -266,15 +273,19 @@ export AI_API_KEY="your_router_api_key"
 │   ├── menu.py
 │   ├── runner.py
 │   └── trace_runner.py
-├── aitool/
+├── aicore/
 │   ├── __main__.py
 │   ├── api_client.py
-│   ├── analyzer.py
 │   ├── cli.py
-│   ├── config.py
-│   ├── prompts.py
-│   ├── redactor.py
-│   └── reporter.py
+│   └── config.py
+├── aitest/
+│   ├── __main__.py
+│   ├── cli.py
+│   ├── detectors.py
+│   ├── payload_guard.py
+│   ├── response_summarizer.py
+│   ├── session_runner.py
+│   └── target_selector.py
 ├── recontool/
 │   ├── __main__.py
 │   ├── RECON_FLOW.md

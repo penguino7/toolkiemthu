@@ -48,7 +48,7 @@ bash run_tool.sh
 Sau đó chọn:
 
 ```text
-9. Chạy AI iterative test
+5. Chạy AI exploit proof
 ```
 
 Output:

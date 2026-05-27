@@ -44,21 +44,19 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 
 
 class AiConfigLoader:
-    """Đọc config AI và merge với giá trị mặc định."""
+    """Đọc config AI và tự load biến môi trường từ file .env."""
 
     def __init__(self, defaults: Dict[str, Any] | None = None) -> None:
         self.defaults = deepcopy(defaults or DEFAULT_CONFIG)
 
     def load(self, path: str | None) -> Dict[str, Any]:
         config = deepcopy(self.defaults)
-        if not path:
-            self.load_env_file(config)
-            return config
+        if path:
+            data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+            config = self.deep_merge(config, data)
 
-        data = json.loads(Path(path).read_text(encoding="utf-8-sig"))
-        merged = self.deep_merge(config, data)
-        self.load_env_file(merged)
-        return merged
+        self.load_env_file(config)
+        return config
 
     def deep_merge(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(base)
@@ -88,10 +86,8 @@ class AiConfigLoader:
             key = key.strip()
             if key.startswith("export "):
                 key = key[len("export ") :].strip()
-            if not key or key in os.environ:
-                continue
-
-            os.environ[key] = self._parse_env_value(value)
+            if key and key not in os.environ:
+                os.environ[key] = self._parse_env_value(value)
 
     def _parse_env_value(self, value: str) -> str:
         parsed = value.strip()

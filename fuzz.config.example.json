@@ -8,7 +8,6 @@
     "exclude_paths": ["/user/logout.php"]
   },
   "safety": {
-    "include_post": false,
     "max_requests": 800,
     "delay_seconds": 0.05,
     "request_timeout_seconds": 15,
@@ -32,8 +31,8 @@
     "enabled": false,
     "payload_mode": "proof",
     "reflected": true,
-    "stored": false,
-    "dom": false,
+    "stored": true,
+    "dom": true,
     "stored_check_paths": [
       "/news.php?id=1",
       "/spa/comments/1",
@@ -46,8 +45,8 @@
   "sqli": {
     "enabled": false,
     "error_based": true,
-    "boolean_based": false,
-    "union_based": false,
+    "boolean_based": true,
+    "union_based": true,
     "union_max_columns": 20,
     "union_marker_prefix": "FUZZUNION"
   },

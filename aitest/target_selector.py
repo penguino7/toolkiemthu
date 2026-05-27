@@ -12,11 +12,8 @@ class AiTestTargetSelector:
     def __init__(self, config: dict) -> None:
         self.config = config
 
-    def select(self, inventory_path: str, max_targets: int, include_post: bool = False) -> List[FuzzTarget]:
+    def select(self, inventory_path: str, max_targets: int) -> List[FuzzTarget]:
         targets = InventoryLoader(self.config).targets_for(inventory_path)
-        if not include_post:
-            targets = [target for target in targets if target.param_location == "query"]
-
         unique_targets = self._dedupe_targets(targets)
         return sorted(unique_targets, key=self._priority)[:max_targets]
 

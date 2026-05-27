@@ -43,7 +43,7 @@ class ReconApplication:
         records = self._collect_records(config)
         records = self._dedupe_records(records, config)
         ReconEndpointTablePrinter().show(records)
-        self.exporter.export_all(records, RECON_OUTPUT_DIR)
+        self.exporter.export_all(records, RECON_OUTPUT_DIR, config.get("base_url", ""))
 
         self._print_outputs()
         return 0

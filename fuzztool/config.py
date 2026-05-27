@@ -14,7 +14,6 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "exclude_paths": ["/user/logout.php"],
     },
     "safety": {
-        "include_post": False,
         "max_requests": 800,
         "delay_seconds": 0.05,
         "skip_param_names": [
@@ -36,8 +35,8 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "enabled": False,
         "payload_mode": "proof",
         "reflected": True,
-        "stored": False,
-        "dom": False,
+        "stored": True,
+        "dom": True,
         "stored_check_paths": [],
         "dom_headless": True,
         "dom_timeout_ms": 8000,
@@ -46,9 +45,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "sqli": {
         "enabled": False,
         "error_based": True,
-        "boolean_based": False,
-        "union_based": False,
-        "union_max_columns": 12,
+        "boolean_based": True,
+        "union_based": True,
+        "union_max_columns": 20,
         "union_marker_prefix": "FUZZUNION",
     },
     "output_dir": "fuzz-output",

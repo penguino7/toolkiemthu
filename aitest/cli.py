@@ -4,7 +4,7 @@ import argparse
 from datetime import datetime
 from urllib.parse import urlparse
 
-from aitool.config import AiConfigLoader
+from aicore.config import AiConfigLoader
 from toolcli.table import ConsoleTable
 
 from .reporter import AiTestReporter
@@ -20,7 +20,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", default="aitest-output", help="Thư mục output")
     parser.add_argument("--max-targets", type=int, default=5, help="Số target tối đa")
     parser.add_argument("--rounds", type=int, default=4, help="Số vòng AI cho mỗi target")
-    parser.add_argument("--include-post", action="store_true", help="Cho phép test body/json POST")
     parser.add_argument("--max-requests", type=int, default=80, help="Giới hạn request")
     return parser
 
@@ -36,7 +35,6 @@ class AiTestApplication:
         targets = AiTestTargetSelector(tool_config).select(
             args.inventory,
             max_targets=args.max_targets,
-            include_post=args.include_post,
         )
         print(f"[*] AI test targets: {len(targets)}")
 
@@ -67,7 +65,6 @@ class AiTestApplication:
                 "exclude_paths": ["/user/logout.php"],
             },
             "safety": {
-                "include_post": bool(args.include_post),
                 "max_requests": int(args.max_requests),
                 "delay_seconds": 0.05,
                 "request_timeout_seconds": 15,

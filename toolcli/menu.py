@@ -13,11 +13,9 @@ class LauncherState:
     base_url: str = "http://127.0.0.1:12001"
     fuzz_output: str = "fuzz-output"
     inventory_path: str = "recon-output/inventory.json"
-    findings_path: str = "fuzz-output/findings.json"
     max_requests: str = ""
     trace_log: bool = False
     ai_config: str = "ai.config.example.json"
-    ai_output: str = "ai-output"
     aitest_output: str = "aitest-output"
     aitest_max_targets: str = "5"
     aitest_rounds: str = "4"
@@ -45,15 +43,13 @@ class ToolCliMenu:
             elif choice == "4":
                 self.run_fuzz(["--xss", "--sqli"], title="fuzz-all")
             elif choice == "5":
-                self.run_ai_analysis()
+                self.run_ai_iterative_test()
             elif choice == "6":
                 self.edit_tool_settings()
             elif choice == "7":
                 self.edit_ai_settings()
             elif choice == "8":
                 self.test_ai_provider()
-            elif choice == "9":
-                self.run_ai_iterative_test()
             elif choice == "0":
                 return 0
             else:
@@ -69,11 +65,9 @@ class ToolCliMenu:
         print(f"Base URL      : {self.state.base_url}")
         print(f"Inventory     : {self.state.inventory_path}")
         print(f"Fuzz output   : {self.state.fuzz_output}")
-        print(f"Findings      : {self.state.findings_path}")
         print(f"Max requests  : {self.state.max_requests or 'default'}")
         print(f"Trace log     : {'ON' if self.state.trace_log else 'OFF'}")
         print(f"AI config     : {self.state.ai_config}")
-        print(f"AI output     : {self.state.ai_output}")
         print(f"AI test output: {self.state.aitest_output}")
         print(f"AI test limit : {self.state.aitest_max_targets} targets, {self.state.aitest_rounds} rounds")
         print("-" * 72)
@@ -81,11 +75,10 @@ class ToolCliMenu:
         print("2. Chạy fuzz XSS")
         print("3. Chạy fuzz SQLi")
         print("4. Chạy fuzz XSS + SQLi")
-        print("5. Chạy AI analysis")
+        print("5. Chạy AI exploit proof")
         print("6. Cài đặt recon/fuzz")
         print("7. Cài đặt AI")
         print("8. Kiểm tra AI provider/API key")
-        print("9. Chạy AI iterative test")
         print("0. Thoát")
 
     def run_recon(self) -> None:
@@ -108,17 +101,6 @@ class ToolCliMenu:
 
         module, final_args = self._module_and_args("fuzz", args)
         self.runner.run_python_module(title, module, final_args)
-        self.state.findings_path = f"{self.state.fuzz_output}/findings.json"
-
-    def run_ai_analysis(self) -> None:
-        args = [
-            self.state.findings_path,
-            "--config",
-            self.state.ai_config,
-            "--out",
-            self.state.ai_output,
-        ]
-        self.runner.run_python_module("ai-analysis", "aitool", args)
 
     def run_ai_iterative_test(self) -> None:
         args = [
@@ -140,9 +122,8 @@ class ToolCliMenu:
         args = [
             "--config",
             self.state.ai_config,
-            "--test-provider",
         ]
-        self.runner.run_python_module("ai-provider-test", "aitool", args)
+        self.runner.run_python_module("ai-provider-test", "aicore", args)
 
     def _module_and_args(self, tool_name: str, args: List[str]) -> tuple[str, List[str]]:
         if self.state.trace_log:
@@ -154,7 +135,6 @@ class ToolCliMenu:
         print("Cài đặt recon/fuzz. Bỏ trống để giữ giá trị hiện tại.")
         self.state.base_url = self._normalize_base_url(self._ask("Base URL", self.state.base_url))
         self.state.fuzz_output = self._ask("Fuzz output", self.state.fuzz_output)
-        self.state.findings_path = self._ask("Findings path", self.state.findings_path)
         self.state.max_requests = self._ask("Max requests", self.state.max_requests)
         trace_answer = self._ask("Trace log ON/OFF", "ON" if self.state.trace_log else "OFF")
         self.state.trace_log = trace_answer.strip().lower() in {"on", "yes", "y", "1", "true"}
@@ -163,11 +143,9 @@ class ToolCliMenu:
         print("")
         print("Cài đặt AI. Bỏ trống để giữ giá trị hiện tại.")
         self.state.ai_config = self._ask("AI config", self.state.ai_config)
-        self.state.ai_output = self._ask("AI output", self.state.ai_output)
         self.state.aitest_output = self._ask("AI test output", self.state.aitest_output)
         self.state.aitest_max_targets = self._ask("AI test max targets", self.state.aitest_max_targets)
         self.state.aitest_rounds = self._ask("AI test rounds", self.state.aitest_rounds)
-        self.state.findings_path = self._ask("Findings path", self.state.findings_path)
 
     def _ask(self, label: str, current: str) -> str:
         value = input(f"{label} [{current or '-'}]: ").strip()

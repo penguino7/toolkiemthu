@@ -24,7 +24,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-o", "--out", help="Thu muc output")
     parser.add_argument("--xss", action="store_true", help="Chay tat ca XSS")
     parser.add_argument("--sqli", action="store_true", help="Chay tat ca SQLi")
-    parser.add_argument("--include-post", action="store_true", help="Cho phep fuzz body/json POST")
     parser.add_argument("--max-requests", type=int, help="Gioi han so request")
     return parser
 
@@ -63,34 +62,22 @@ class FuzzApplication:
             config["output_dir"] = args.out
         if args.base_url:
             config["base_url"] = args.base_url.rstrip("/")
-        if args.include_post:
-            config.setdefault("safety", {})["include_post"] = True
         if args.max_requests is not None:
             config.setdefault("safety", {})["max_requests"] = args.max_requests
 
         if args.xss:
-            self._enable_all_xss(config)
+            self._enable_xss(config)
         if args.sqli:
-            self._enable_all_sqli(config, args.max_requests)
+            self._enable_sqli(config, args.max_requests)
 
         sync_scope_with_base_url(config)
         return config
 
-    def _enable_all_xss(self, config: dict) -> None:
-        xss = config.setdefault("xss", {})
-        xss["enabled"] = True
-        xss["reflected"] = True
-        xss["dom"] = True
-        xss["stored"] = True
-        config.setdefault("safety", {})["include_post"] = True
+    def _enable_xss(self, config: dict) -> None:
+        config.setdefault("xss", {})["enabled"] = True
 
-    def _enable_all_sqli(self, config: dict, max_requests: int | None) -> None:
-        sqli = config.setdefault("sqli", {})
-        sqli["enabled"] = True
-        sqli["error_based"] = True
-        sqli["boolean_based"] = True
-        sqli["union_based"] = True
-        config.setdefault("safety", {})["include_post"] = True
+    def _enable_sqli(self, config: dict, max_requests: int | None) -> None:
+        config.setdefault("sqli", {})["enabled"] = True
 
         if max_requests is None:
             safety = config.setdefault("safety", {})
@@ -105,10 +92,7 @@ class FuzzApplication:
         return selected
 
     def _load_targets(self, inventory_path: str, config: dict) -> list[FuzzTarget]:
-        targets = InventoryLoader(config).targets_for(inventory_path)
-        if config.get("safety", {}).get("include_post", False):
-            return targets
-        return [target for target in targets if target.param_location == "query"]
+        return InventoryLoader(config).targets_for(inventory_path)
 
     def _build_client(self, config: dict) -> FuzzHttpClient:
         safety = config.get("safety", {})

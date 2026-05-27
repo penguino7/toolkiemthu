@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
-from typing import Any
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -20,6 +19,7 @@ class AiApiClient:
     def __init__(self, config: dict) -> None:
         provider = config.get("provider", {})
         provider_name = str(provider.get("name", "openai_compatible")).lower()
+
         self.base_url = str(provider.get("base_url", "")).rstrip("/")
         self.model = str(provider.get("model", ""))
         self.timeout = int(provider.get("timeout_seconds", 60))
@@ -33,13 +33,13 @@ class AiApiClient:
         self.extra_headers = {str(key): str(value) for key, value in dict(provider.get("headers", {})).items()}
 
         if provider_name not in {"openai_compatible", "openai-compatible", "chat_completions"}:
-            raise ValueError("AI client only supports provider.name=openai_compatible")
+            raise ValueError("AI provider chỉ hỗ trợ openai_compatible")
         if not self.base_url:
-            raise ValueError("Missing provider.base_url in ai.config.example.json")
+            raise ValueError("Thiếu provider.base_url trong ai.config.example.json")
         if not self.model:
-            raise ValueError("Missing provider.model in ai.config.example.json")
+            raise ValueError("Thiếu provider.model trong ai.config.example.json")
         if api_key_env and not self.api_key:
-            raise ValueError(f"Missing API key. Set {api_key_env} in .env")
+            raise ValueError(f"Thiếu API key. Hãy đặt {api_key_env} trong .env")
 
     def complete(self, messages: list[ChatMessage]) -> str:
         payload = {

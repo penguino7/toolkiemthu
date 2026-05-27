@@ -18,7 +18,10 @@ class InventoryLoader:
         self.skip_names = {name.lower() for name in config.get("safety", {}).get("skip_param_names", [])}
 
     def load_records(self, path: str) -> List[dict]:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return list(data.get("endpoints", []))
+        return list(data)
 
     def targets_for(self, path: str) -> List[FuzzTarget]:
         records = self.load_records(path)
@@ -38,9 +41,6 @@ class InventoryLoader:
         return targets
 
     def _record_url(self, record: dict) -> str:
-        examples = record.get("examples") or []
-        if examples:
-            return str(examples[0] or record.get("url", ""))
         return str(record.get("url", ""))
 
     def _url_for_fuzz(self, raw_url: str) -> str:
@@ -59,9 +59,11 @@ class InventoryLoader:
 
     def _target_from_param(self, record: dict, param: dict, fuzz_url: str) -> FuzzTarget | None:
         name = str(param.get("name", ""))
-        location = str(param.get("location", ""))
+        location = str(param.get("in") or param.get("location", ""))
         if not name or name.lower() in self.skip_names:
             return None
+
+        sample_values = self._sample_values(param)
 
         return FuzzTarget(
             method=str(record.get("method", "GET")).upper(),
@@ -69,12 +71,19 @@ class InventoryLoader:
             path=str(record.get("canonical_path") or record.get("path") or ""),
             param_name=name,
             param_location=location,
-            type_hint=str(param.get("type_hint", "string")),
-            sample_values=[str(value) for value in param.get("sample_values", [])],
+            type_hint=str(param.get("type") or param.get("type_hint") or "string"),
+            sample_values=sample_values,
             request_content_type=str(record.get("request_content_type", "")),
             request_headers={str(k).lower(): str(v) for k, v in record.get("request_headers", {}).items()},
             record=record,
         )
+
+    def _sample_values(self, param: dict) -> List[str]:
+        if "sample_values" in param:
+            return [str(value) for value in param.get("sample_values", [])]
+        if "sample" in param:
+            return [str(param.get("sample", ""))]
+        return []
 
 
 class ScopeFilter:
