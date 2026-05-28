@@ -2,20 +2,20 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 from .models import EndpointRecord, Param
 
 
-CACHE_BUSTER_PARAMS = {
+# Cac param nay thuong chi dung de cache/tracking, khong phai diem fuzz chinh.
+IGNORED_QUERY_PARAMS = {
     "_",
     "_t",
     "t",
     "ts",
     "timestamp",
     "cache",
-    "cachebuster",
     "cb",
     "rand",
     "random",
@@ -25,10 +25,17 @@ CACHE_BUSTER_PARAMS = {
     "utm_term",
     "utm_content",
 }
+DYNAMIC_PATH_TYPES = {"int", "uuid", "date"}
+TYPE_PATTERNS = [
+    ("int", r"-?\d+"),
+    ("float", r"-?\d+\.\d+"),
+    ("date", r"\d{4}-\d{2}-\d{2}"),
+    ("uuid", r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"),
+]
 
 
 class ReconNormalizer:
-    """Chuẩn hóa dữ liệu crawl/import về cùng một kiểu EndpointRecord."""
+    """Dua URL/request thô ve EndpointRecord de recon/fuzz dung chung."""
 
     def make_record(
         self,
@@ -39,142 +46,136 @@ class ReconNormalizer:
         status: int | None = None,
         request_content_type: str = "",
         response_content_type: str = "",
-        request_headers: Dict[str, str] | None = None,
-        response_headers: Dict[str, str] | None = None,
+        request_headers: dict[str, str] | None = None,
+        response_headers: dict[str, str] | None = None,
         body: str | bytes | None = None,
         discovered_from: str | None = None,
-        forms: List[Dict[str, Any]] | None = None,
+        forms: list[dict[str, Any]] | None = None,
     ) -> EndpointRecord:
-        normalized_url = self.absolute_url(url, base_url)
-        parsed_url = urlparse(normalized_url)
+        url = self.absolute_url(url, base_url)
+        parsed = urlparse(url)
 
         record = EndpointRecord(
             method=method.upper(),
-            url=normalized_url,
-            scheme=parsed_url.scheme,
-            host=parsed_url.hostname or "",
-            port=parsed_url.port,
-            path=parsed_url.path or "/",
-            canonical_path=self.canonicalize_path(parsed_url.path or "/"),
-            request_content_type=request_content_type or "",
-            response_content_type=response_content_type or "",
-            request_headers=self._normalize_headers(request_headers),
-            response_headers=self._normalize_headers(response_headers),
+            url=url,
+            scheme=parsed.scheme,
+            host=parsed.hostname or "",
+            port=parsed.port,
+            path=parsed.path or "/",
+            canonical_path=self.make_path_pattern(parsed.path or "/"),
+            request_content_type=request_content_type,
+            response_content_type=response_content_type,
+            request_headers=self._lower_headers(request_headers),
+            response_headers=self._lower_headers(response_headers),
             statuses=[status] if status else [],
             source_tools=[source_tool],
             discovered_from=[discovered_from] if discovered_from else [],
-            examples=[normalized_url],
+            examples=[url],
             forms=forms or [],
         )
 
-        for param in self.parse_query_params(normalized_url):
-            record.add_param(param)
-        for param in self.parse_body_params(body, request_content_type):
+        for param in self.parse_query_params(url) + self.parse_body_params(body, request_content_type):
             record.add_param(param)
 
         return record
 
     def absolute_url(self, url: str, base_url: str | None = None) -> str:
+        """Bien URL tuong doi/thua query rac thanh URL on dinh."""
         if base_url:
             url = urljoin(base_url, url)
 
         parsed = urlparse(url)
-        scheme = parsed.scheme.lower() or "http"
-        host = parsed.hostname.lower() if parsed.hostname else ""
+        query = urlencode(self._clean_query_pairs(parsed.query))
+        host = (parsed.hostname or "").lower()
         port = f":{parsed.port}" if parsed.port else ""
-        path = self._clean_path(parsed.path or "/")
 
-        query_pairs = [
-            (name, value)
-            for name, value in parse_qsl(parsed.query, keep_blank_values=True)
-            if name.lower() not in CACHE_BUSTER_PARAMS
-        ]
-        query = urlencode(sorted(query_pairs), doseq=True)
-        return urlunparse((scheme, f"{host}{port}", path, "", query, ""))
+        return urlunparse(((parsed.scheme or "http").lower(), f"{host}{port}", self._clean_path(parsed.path or "/"), "", query, ""))
 
-    def canonicalize_path(self, path: str) -> str:
+    def make_path_pattern(self, path: str) -> str:
+        """/news/123 -> /news/{int}; dung de gom endpoint trung nhau."""
         parts = []
         for part in self._clean_path(path).split("/"):
             if not part:
                 continue
-            type_hint = self.infer_type(part)
-            parts.append("{" + type_hint + "}" if type_hint in {"int", "uuid", "date"} else part)
+
+            value_type = self.infer_type(part)
+            parts.append(f"{{{value_type}}}" if value_type in DYNAMIC_PATH_TYPES else part)
+
         return "/" + "/".join(parts)
 
-    def parse_query_params(self, url: str) -> List[Param]:
-        params: List[Param] = []
-        for name, value in parse_qsl(urlparse(url).query, keep_blank_values=True):
-            if name.lower() in CACHE_BUSTER_PARAMS:
-                continue
-            params.append(self._make_param(name, "query", value))
-        return params
+    def canonicalize_path(self, path: str) -> str:
+        """Ten cu, giu lai de tranh vo code neu co noi con goi."""
+        return self.make_path_pattern(path)
 
-    def parse_body_params(self, body: str | bytes | None, content_type: str = "") -> List[Param]:
+    def parse_query_params(self, url: str) -> list[Param]:
+        return [self._new_param(name, "query", value) for name, value in self._clean_query_pairs(urlparse(url).query)]
+
+    def parse_body_params(self, body: str | bytes | None, content_type: str = "") -> list[Param]:
         if not body:
             return []
 
         body_text = body.decode("utf-8", errors="replace") if isinstance(body, bytes) else body
         content_type = content_type.lower()
 
-        if "application/json" in content_type:
-            return self._parse_json_body(body_text)
-        if "application/x-www-form-urlencoded" in content_type or "=" in body_text:
-            return self._parse_form_body(body_text)
+        if "json" in content_type:
+            return self._json_params(body_text)
+        if "x-www-form-urlencoded" in content_type or "=" in body_text:
+            return self._form_params(body_text)
         return []
 
     def infer_type(self, value: Any) -> str:
         text = "" if value is None else str(value)
         if text == "":
             return "empty"
-        if re.fullmatch(r"-?\d+", text):
-            return "int"
-        if re.fullmatch(r"-?\d+\.\d+", text):
-            return "float"
         if text.lower() in {"true", "false"}:
             return "bool"
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
-            return "date"
-        if re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", text):
-            return "uuid"
+        for type_name, pattern in TYPE_PATTERNS:
+            if re.fullmatch(pattern, text):
+                return type_name
         if "@" in text and "." in text:
             return "email"
         return "string"
 
-    def _parse_json_body(self, body_text: str) -> List[Param]:
+    def _clean_query_pairs(self, query: str) -> list[tuple[str, str]]:
+        return sorted(
+            (name, value)
+            for name, value in parse_qsl(query, keep_blank_values=True)
+            if name.lower() not in IGNORED_QUERY_PARAMS
+        )
+
+    def _json_params(self, body_text: str) -> list[Param]:
         try:
             data = json.loads(body_text)
         except json.JSONDecodeError:
             return []
 
-        return [self._make_param(name, "json", value) for name, value in self._flatten_json(data)]
+        return [self._new_param(name, "json", value) for name, value in self._walk_json(data)]
 
-    def _parse_form_body(self, body_text: str) -> List[Param]:
-        return [self._make_param(name, "body", value) for name, value in parse_qsl(body_text, keep_blank_values=True)]
+    def _form_params(self, body_text: str) -> list[Param]:
+        return [self._new_param(name, "body", value) for name, value in parse_qsl(body_text, keep_blank_values=True)]
 
-    def _make_param(self, name: str, location: str, value: Any) -> Param:
-        param = Param(name=name, location=location, type_hint=self.infer_type(value))
-        param.add_value(value)
-        return param
-
-    def _flatten_json(self, value: Any, prefix: str = "") -> Iterable[Tuple[str, Any]]:
+    def _walk_json(self, value: Any, prefix: str = ""):
         if isinstance(value, dict):
             for key, child in value.items():
-                next_prefix = f"{prefix}.{key}" if prefix else str(key)
-                yield from self._flatten_json(child, next_prefix)
+                name = f"{prefix}.{key}" if prefix else str(key)
+                yield from self._walk_json(child, name)
             return
 
         if isinstance(value, list):
             for index, child in enumerate(value[:5]):
-                yield from self._flatten_json(child, f"{prefix}[{index}]")
+                yield from self._walk_json(child, f"{prefix}[{index}]")
             return
 
         yield prefix, value
 
-    def _clean_path(self, path: str) -> str:
-        cleaned = re.sub(r"/{2,}", "/", path or "/")
-        return cleaned.rstrip("/") if len(cleaned) > 1 else cleaned
+    def _new_param(self, name: str, location: str, value: Any) -> Param:
+        param = Param(name=name, location=location, type_hint=self.infer_type(value))
+        param.add_value(value)
+        return param
 
-    def _normalize_headers(self, headers: Dict[str, str] | None) -> Dict[str, str]:
-        if not headers:
-            return {}
-        return {str(key).lower(): str(value) for key, value in headers.items()}
+    def _clean_path(self, path: str) -> str:
+        path = re.sub(r"/{2,}", "/", path or "/")
+        return path.rstrip("/") if len(path) > 1 else path
+
+    def _lower_headers(self, headers: dict[str, str] | None) -> dict[str, str]:
+        return {str(name).lower(): str(value) for name, value in (headers or {}).items()}
