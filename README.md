@@ -235,6 +235,10 @@ aitest-output/sessions.json
 
 `aitest` không sửa `fuzz-output/findings.json`; đây là session log để đọc quá trình AI đề xuất payload, đọc response và đi tới proof từng vòng.
 
+Khi gửi response cho AI, tool dùng `response_context` dạng smart: response nhỏ thì gửi `raw_response`, response lớn thì gửi `raw_head`, `raw_tail` và các `signal_windows` quanh marker/lỗi SQL. Nhờ vậy AI đọc được nội dung thật nhưng không bị nhồi toàn bộ HTML dài.
+
+Trong `aitest`, detector chỉ tách evidence khách quan như SQL error, marker, vị trí JSON/HTML. Kết luận cuối của mỗi vòng nằm ở `ai_verdict` với `status=no_issue|suspicious|confirmed`, để tránh việc rule trong detector tự kết luận lỗ hổng.
+
 Cấu hình AI nằm ở:
 
 ```text
@@ -280,9 +284,11 @@ export AI_API_KEY="your_router_api_key"
 │   └── config.py
 ├── aitest/
 │   ├── __main__.py
+│   ├── ai_decision.py
 │   ├── cli.py
 │   ├── detectors.py
 │   ├── payload_guard.py
+│   ├── prompts.py
 │   ├── response_summarizer.py
 │   ├── session_runner.py
 │   └── target_selector.py

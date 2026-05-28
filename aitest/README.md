@@ -13,31 +13,71 @@ Mục tiêu của module không phải lấy dữ liệu thật, mà là tạo b
 inventory.json
 -> chọn tối đa vài target
 -> gửi baseline request
--> AI đề xuất 1 payload
+-> AI đọc baseline/previous_rounds/response_context rồi đề xuất 1 payload
 -> payload_guard kiểm tra an toàn
 -> gửi request
--> detector tách signal
+-> detector tách evidence/signals khách quan
+-> AI đọc response thật + signals để đưa verdict
 -> nếu mới có SQL error thì tiếp tục, chưa dừng
--> nếu có exploit_proof thì dừng target
+-> nếu AI verdict là confirmed thì dừng target
+-> nếu AI tự trả stop=true thì dừng target, tool không tự thay bằng payload fallback
 -> xuất aitest-output/sessions.json
 ```
 
-## Các signal quan trọng
+Payload trong luồng chính do AI sinh dựa trên ngữ cảnh từng vòng. Fallback payload chỉ dùng khi API lỗi hoặc AI trả JSON không hợp lệ.
+
+## Response context gửi cho AI
+
+`ResponseSummarizer` không chỉ gửi `status/signals` nữa. Nó dùng chế độ smart:
+
+- response nhỏ: gửi `raw_response` để AI đọc gần như toàn bộ nội dung.
+- JSON nhỏ: cho phép gửi dài hơn HTML vì JSON thường sát dữ liệu API hơn.
+- response lớn: gửi `raw_head`, `raw_tail` và `signal_windows` quanh marker hoặc lỗi SQL.
+
+Cấu hình nằm trong `ai.config.example.json`:
+
+```json
+"aitest": {
+  "full_raw_under_chars": 4000,
+  "json_raw_under_chars": 8000,
+  "raw_head_chars": 2000,
+  "raw_tail_chars": 2000,
+  "signal_window_chars": 700,
+  "text_preview_chars": 1200,
+  "fallback_union_columns": 8
+}
+```
+
+## Evidence Và AI Verdict
+
+Detector không tự kết luận lỗ hổng. Nó chỉ tách evidence để AI đọc dễ hơn:
 
 ```json
 {
   "sql_error_confirmed": true,
-  "union_marker_confirmed": false,
+  "union_marker_in_output": false,
   "xss_reflection": false,
   "xss_executed": false,
-  "exploit_proof": false
+  "objective_proof": false
 }
 ```
 
-`sql_error_confirmed=true` chỉ là tín hiệu nghi vấn. Module chỉ coi là proof khi:
+Sau mỗi payload, AI đọc `response_context` và signals để trả verdict:
 
-- `union_marker_confirmed=true`, hoặc
-- `xss_executed=true`.
+```json
+{
+  "status": "no_issue|suspicious|confirmed",
+  "vuln_type": "none|sqli|xss",
+  "confidence": "low|medium|high",
+  "reason": "giải thích ngắn gọn",
+  "next_step": "hướng test tiếp nếu chưa confirmed"
+}
+```
+
+`sql_error_confirmed=true` chỉ là tín hiệu nghi vấn. Module chỉ nên coi là confirmed khi AI thấy đủ bằng chứng, ví dụ:
+
+- UNION marker xuất hiện trong dữ liệu thật hoặc HTML, không chỉ nằm trong debug SQL.
+- XSS được Playwright xác nhận alert/dialog chứa marker.
 
 ## Chạy
 

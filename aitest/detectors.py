@@ -8,7 +8,7 @@ from fuzztool.models import HttpExchange
 
 
 class AiTestDetectors:
-    """Detector nhẹ để tóm tắt signal sau mỗi vòng AI test."""
+    """Trich xuat evidence khach quan, khong tu ket luan lo hong."""
 
     DB_ERROR_PATTERNS = [
         "mysqli_sql_exception",
@@ -36,7 +36,7 @@ class AiTestDetectors:
         marker_index = compact.find(marker)
         marker_in_html = marker in text and "html" in content_type.lower()
         marker_in_data = bool(marker_info.get("matched_paths"))
-        union_marker_confirmed = bool(visible_columns) and (marker_in_data or marker_in_html)
+        objective_proof = bool(visible_columns) and (marker_in_data or marker_in_html)
 
         return {
             "sql_error_patterns": sql_errors,
@@ -47,13 +47,13 @@ class AiTestDetectors:
             "matched_paths": marker_info.get("matched_paths", []),
             "ignored_paths": marker_info.get("ignored_paths", []),
             "visible_columns": visible_columns,
-            "union_marker_confirmed": union_marker_confirmed,
+            "union_marker_in_output": objective_proof,
             "marker_excerpt": self._excerpt(compact, marker_index, 300) if marker_index >= 0 else "",
             "xss_reflection": marker in text and "html" in content_type.lower(),
             "xss_executed": False,
-            "exploit_proof": union_marker_confirmed,
-            "proof_type": "union_marker" if union_marker_confirmed else "",
-            "confirmed_signal": bool(sql_errors) or marker_in_data or marker_in_html,
+            "objective_proof": objective_proof,
+            "objective_proof_type": "union_marker" if objective_proof else "",
+            "candidate_signal": bool(sql_errors) or marker_in_data or marker_in_html,
         }
 
     def sql_error_patterns(self, text: str) -> List[str]:

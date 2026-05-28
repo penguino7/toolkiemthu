@@ -31,6 +31,7 @@ class AiTestApplication:
         args = build_parser().parse_args(argv)
         tool_config = self._tool_config(args)
         ai_config = AiConfigLoader().load(args.ai_config)
+        tool_config["aitest"].update(ai_config.get("aitest", {}))
 
         targets = AiTestTargetSelector(tool_config).select(
             args.inventory,
@@ -83,6 +84,15 @@ class AiTestApplication:
                     "sid",
                     "phpsessid",
                 ],
+            },
+            "aitest": {
+                "full_raw_under_chars": 4000,
+                "json_raw_under_chars": 8000,
+                "raw_head_chars": 2000,
+                "raw_tail_chars": 2000,
+                "signal_window_chars": 700,
+                "text_preview_chars": 1200,
+                "fallback_union_columns": 8,
             },
         }
 
