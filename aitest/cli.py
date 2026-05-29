@@ -18,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default="http://127.0.0.1:12001", help="Base URL của lab")
     parser.add_argument("--ai-config", default="ai.config.example.json", help="File config AI")
     parser.add_argument("--out", default="aitest-output", help="Thư mục output")
-    parser.add_argument("--max-targets", type=int, default=5, help="Số target tối đa")
+    parser.add_argument("--max-targets", type=int, default=6, help="Số target tối đa")
     parser.add_argument("--rounds", type=int, default=4, help="Số vòng AI cho mỗi target")
     parser.add_argument("--max-requests", type=int, default=80, help="Giới hạn request")
     return parser
@@ -121,11 +121,12 @@ class AiTestTablePrinter:
     def show(self, event: dict) -> None:
         self.count += 1
         target = event.get("target")
+        focus = getattr(target, "aitest_focus", "auto") if target else "auto"
         row = [
             datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
             f"{event.get('target_index')}/{event.get('target_total')}",
             event.get("round", "-"),
-            getattr(target, "key", "-"),
+            f"[{focus}] {getattr(target, 'key', '-')}",
             event.get("attack_type", "-"),
             event.get("payload", "-"),
             event.get("status", "-"),

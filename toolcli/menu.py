@@ -17,7 +17,7 @@ class LauncherState:
     trace_log: bool = False
     ai_config: str = "ai.config.example.json"
     aitest_output: str = "aitest-output"
-    aitest_max_targets: str = "5"
+    aitest_max_targets: str = "6"
     aitest_rounds: str = "4"
 
 

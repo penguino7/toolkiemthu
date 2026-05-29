@@ -17,6 +17,7 @@ def build_payload_prompt(target: FuzzTarget, marker: str, baseline: dict, previo
             "Khong dung payload pha hoai du lieu/he thong: DROP, DELETE, UPDATE, INSERT, OUTFILE, LOAD_FILE, RCE.",
             "Moi vong chi sinh 1 payload ngan, ro muc dich, phu hop voi param.",
             "Payload phai dua tren baseline, previous_rounds, response_context va ai_verdict truoc do.",
+            "Neu target.test_focus la sqli, uu tien SQLi. Neu la xss, uu tien XSS va khong chuyen sang ORDER BY/UNION neu chua co SQL signal ro.",
             "Khong chay theo thu tu co dinh. Hay chon quote, boolean, ORDER BY, UNION hoac XSS tuy theo response vua thay.",
             "Khong dung SQL error don le lam ket luan thanh cong.",
             "Neu test UNION, payload nen dung marker theo tung cot: MARKER_C01, MARKER_C02...",
@@ -92,6 +93,7 @@ def _target_dict(target: FuzzTarget) -> dict:
         "location": target.param_location,
         "type_hint": target.type_hint,
         "sample_value": target.sample_value,
+        "test_focus": getattr(target, "aitest_focus", "auto"),
     }
 
 
