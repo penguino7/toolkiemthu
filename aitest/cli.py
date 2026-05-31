@@ -112,7 +112,6 @@ class AiTestApplication:
                 "raw_tail_chars": 2000,
                 "signal_window_chars": 700,
                 "text_preview_chars": 1200,
-                "fallback_union_columns": 8,
             },
         }
 

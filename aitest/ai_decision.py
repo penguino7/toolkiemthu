@@ -40,11 +40,10 @@ class AiEvidenceVerdict:
 
 
 class AiDecisionEngine:
-    """Goi AI, parse ket qua va fallback khi API loi."""
+    """Goi AI va parse ket qua. Khong tu sinh payload thay cho AI."""
 
-    def __init__(self, ai_config: dict, fallback_union_columns: int = 8) -> None:
+    def __init__(self, ai_config: dict) -> None:
         self.ai_api = AiApiClient(ai_config)
-        self.fallback_union_columns = fallback_union_columns
 
     def next_payload(
         self,
@@ -56,9 +55,16 @@ class AiDecisionEngine:
         try:
             prompt = build_payload_prompt(target, marker, baseline, previous_rounds)
             raw = self.ai_api.complete([ChatMessage(role="user", content=prompt)])
-            return self._parse_payload(raw)
+            decision = self._parse_payload(raw)
+            self._validate_focus(target, decision)
+            return decision
         except Exception as error:
-            return self._fallback_payload(target, marker, len(previous_rounds) + 1, f"AI fallback: {error}")
+            return AiPayloadDecision(
+                attack_type="stop",
+                reason=f"AI error, dung target: {error}",
+                stop=True,
+                source="ai_error",
+            )
 
     def verdict(
         self,
@@ -73,10 +79,11 @@ class AiDecisionEngine:
             raw = self.ai_api.complete([ChatMessage(role="user", content=prompt)])
             return self._parse_verdict(raw)
         except Exception as error:
-            verdict = self._fallback_verdict(response)
-            verdict.reason = f"AI verdict fallback: {error}; {verdict.reason}"
-            verdict.source = "fallback"
-            return verdict
+            return AiEvidenceVerdict(
+                status="unknown",
+                reason=f"AI verdict error: {error}",
+                source="ai_error",
+            )
 
     def _parse_payload(self, raw_text: str) -> AiPayloadDecision:
         data = self._extract_json(raw_text)
@@ -118,46 +125,12 @@ class AiDecisionEngine:
         text = str(value or default).lower()
         return text if text in allowed else default
 
-    def _fallback_payload(
-        self,
-        target: FuzzTarget,
-        marker: str,
-        round_number: int,
-        reason: str,
-    ) -> AiPayloadDecision:
-        sample = target.sample_value
-        name = target.param_name.lower()
-        is_sqli = target.type_hint in {"int", "float"} or name == "id" or name.endswith("_id")
+    def _validate_focus(self, target: FuzzTarget, decision: AiPayloadDecision) -> None:
+        if decision.stop:
+            return
 
-        if is_sqli:
-            return self._fallback_sqli_payload(sample, marker, round_number, reason)
-        return self._fallback_xss_payload(marker, round_number, reason)
-
-    def _fallback_sqli_payload(self, sample: str, marker: str, round_number: int, reason: str) -> AiPayloadDecision:
-        if round_number == 1:
-            return AiPayloadDecision(f"{sample}'", "sqli_error", reason, "SQL error", source="fallback")
-        if round_number == 2:
-            return AiPayloadDecision(f"{sample} ORDER BY 12-- -", "sqli_order_by", reason, "SQL error", source="fallback")
-        if round_number == 3:
-            columns = ",".join(f"'{marker}_C{index:02d}'" for index in range(1, self.fallback_union_columns + 1))
-            return AiPayloadDecision(f"-1 UNION SELECT {columns}-- -", "sqli_union", reason, "marker rendered", source="fallback")
-        return AiPayloadDecision(stop=True, attack_type="stop", reason="fallback da thu du vong", source="fallback")
-
-    def _fallback_xss_payload(self, marker: str, round_number: int, reason: str) -> AiPayloadDecision:
-        if round_number == 1:
-            return AiPayloadDecision(f'"><svg/onload=alert("{marker}")>', "xss_reflection", reason, "marker reflected", source="fallback")
-        if round_number == 2:
-            return AiPayloadDecision(f'<script>alert("{marker}")</script>', "xss_reflection", reason, "browser alert", source="fallback")
-        return AiPayloadDecision(stop=True, attack_type="stop", reason="fallback da thu du vong", source="fallback")
-
-    def _fallback_verdict(self, response: dict) -> AiEvidenceVerdict:
-        signals = response.get("signals", {})
-        if signals.get("objective_proof"):
-            proof_type = signals.get("objective_proof_type", "objective_proof")
-            vuln_type = "xss" if proof_type == "xss_alert" else "sqli"
-            return AiEvidenceVerdict("confirmed", vuln_type, "high", f"objective proof found: {proof_type}", source="fallback")
-        if signals.get("sql_error_confirmed"):
-            return AiEvidenceVerdict("suspicious", "sqli", "medium", "SQL error observed, but no exploit proof yet", "try ORDER BY or UNION marker proof", "fallback")
-        if signals.get("xss_reflection"):
-            return AiEvidenceVerdict("suspicious", "xss", "medium", "marker reflected, but browser execution not confirmed", "try browser-executable XSS payload", "fallback")
-        return AiEvidenceVerdict("no_issue", "none", "low", "no useful signal", source="fallback")
+        focus = getattr(target, "aitest_focus", "auto")
+        if focus == "xss" and not decision.attack_type.startswith("xss"):
+            raise ValueError(f"target XSS nhung AI tra attack_type={decision.attack_type}")
+        if focus == "sqli" and not decision.attack_type.startswith("sqli"):
+            raise ValueError(f"target SQLi nhung AI tra attack_type={decision.attack_type}")

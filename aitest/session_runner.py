@@ -27,10 +27,7 @@ class AiIterativeSessionRunner:
 
         self.on_round = on_round
         self.tool_config = tool_config
-        self.ai = AiDecisionEngine(
-            ai_config,
-            fallback_union_columns=int(aitest_config.get("fallback_union_columns", 8)),
-        )
+        self.ai = AiDecisionEngine(ai_config)
         self.client = FuzzHttpClient(
             headers=tool_config.get("headers", {}),
             max_requests=int(safety.get("max_requests", 100)),
@@ -220,10 +217,10 @@ class AiIterativeSessionRunner:
             return self.ai.verdict(target, marker, decision, response, previous_rounds).to_dict()
 
         return {
-            "status": "no_issue",
+            "status": "not_reviewed",
             "vuln_type": "none",
             "confidence": "low",
-            "reason": "Khong co signal dang chu y, bo qua AI verdict de tang toc.",
+            "reason": "Khong co signal dang chu y, chua goi AI verdict de tang toc.",
             "next_step": "AI se doc response nay o round tiep theo neu con vong.",
             "source": "local",
         }

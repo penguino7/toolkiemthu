@@ -20,11 +20,11 @@ inventory.json
 -> AI đọc response thật + signals để đưa verdict
 -> nếu mới có SQL error thì tiếp tục, chưa dừng
 -> nếu AI verdict là confirmed thì dừng target
--> nếu AI tự trả stop=true thì dừng target, tool không tự thay bằng payload fallback
+-> nếu AI tự trả stop=true hoặc API AI lỗi thì dừng target
 -> xuất aitest-output/sessions.json
 ```
 
-Payload trong luồng chính do AI sinh dựa trên ngữ cảnh từng vòng. Fallback payload chỉ dùng khi API lỗi hoặc AI trả JSON không hợp lệ.
+Payload trong luồng chính chỉ do AI sinh dựa trên ngữ cảnh từng vòng. Tool không có payload fallback. Nếu API lỗi, AI trả JSON sai hoặc trả sai nhóm XSS/SQLi thì target sẽ dừng và ghi `ai_error`.
 
 ## Response context gửi cho AI
 
@@ -43,8 +43,7 @@ Cấu hình nằm trong `ai.config.example.json`:
   "raw_head_chars": 2000,
   "raw_tail_chars": 2000,
   "signal_window_chars": 700,
-  "text_preview_chars": 1200,
-  "fallback_union_columns": 8
+  "text_preview_chars": 1200
 }
 ```
 
