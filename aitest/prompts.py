@@ -22,7 +22,7 @@ def build_payload_prompt(target: FuzzTarget, marker: str, baseline: dict, previo
             "Khong dung SQL error don le lam ket luan thanh cong.",
             "Neu test UNION, payload nen dung marker theo tung cot: MARKER_C01, MARKER_C02...",
             "Khong lap lai payload da thu trong previous_rounds.",
-            "Doc response_context.raw_response neu co; neu khong co thi doc signal_windows, raw_head va raw_tail.",
+            "Doc response_context.html_text neu mode la html_text. Neu co raw_response thi doc raw_response; neu khong thi doc signal_windows, raw_head va raw_tail.",
         ],
         "strategy_options": [
             "Neu response binh thuong va chua co signal, co the thu payload nhe de probe SQLi hoac XSS.",
@@ -62,7 +62,7 @@ def build_verdict_prompt(
         "goal": "Doc response that va ket luan payload vua gui la no_issue, suspicious hay confirmed.",
         "important": [
             "signals la goi y do tool trich xuat, khong phai ket luan bat buoc.",
-            "Hay tu doc response_context/raw_response/signal_windows de dua verdict.",
+            "Hay tu doc response_context/html_text/raw_response/signal_windows de dua verdict.",
             "SQL error don le chi la suspicious, khong phai confirmed.",
             "XSS confirmed khi co bang chung alert/dialog hoac browser execution.",
             "SQLi confirmed khi marker/UNION column hien trong data/html that, khong chi nam trong sql/debug/request/echo param.",

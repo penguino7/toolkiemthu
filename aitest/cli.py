@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlparse
 
 from aicore.config import AiConfigLoader
@@ -18,8 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default="http://127.0.0.1:12001", help="Base URL của lab")
     parser.add_argument("--ai-config", default="ai.config.example.json", help="File config AI")
     parser.add_argument("--out", default="aitest-output", help="Thư mục output")
-    parser.add_argument("--max-targets", type=int, default=6, help="Số target tối đa")
-    parser.add_argument("--rounds", type=int, default=4, help="Số vòng AI cho mỗi target")
+    parser.add_argument("--max-targets", type=int, default=4, help="Số target tối đa")
+    parser.add_argument("--rounds", type=int, default=3, help="Số vòng AI cho mỗi target")
     parser.add_argument("--max-requests", type=int, default=80, help="Giới hạn request")
     return parser
 
@@ -33,6 +34,10 @@ class AiTestApplication:
         ai_config = AiConfigLoader().load(args.ai_config)
         tool_config["aitest"].update(ai_config.get("aitest", {}))
 
+        reporter = AiTestReporter()
+        sessions = []
+        reporter.export(sessions, args.out)
+
         targets = AiTestTargetSelector(tool_config).select(
             args.inventory,
             max_targets=args.max_targets,
@@ -41,19 +46,34 @@ class AiTestApplication:
 
         table = AiTestTablePrinter()
         table.start()
-        sessions = AiIterativeSessionRunner(
+        runner = AiIterativeSessionRunner(
             tool_config,
             ai_config,
             on_round=table.show,
-        ).run_targets(
-            targets,
-            rounds=args.rounds,
         )
+
+        total = len(targets)
+        for index, target in enumerate(targets, start=1):
+            try:
+                session = runner.run_one_target(target, args.rounds, index, total)
+            except Exception as error:
+                session = {
+                    "target": {
+                        "method": target.method,
+                        "path": target.path,
+                        "param": target.param_name,
+                        "location": target.param_location,
+                    },
+                    "error": str(error),
+                    "rounds": [],
+                }
+            sessions.append(session)
+            reporter.export(sessions, args.out)
+
         table.finish()
-        AiTestReporter().export(sessions, args.out)
 
         print(f"[*] Sessions: {len(sessions)}")
-        print(f"[*] Wrote: {args.out}/sessions.json")
+        print(f"[*] Wrote: {Path(args.out).resolve() / 'sessions.json'}")
         return 0
 
     def _tool_config(self, args: argparse.Namespace) -> dict:

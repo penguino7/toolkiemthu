@@ -14,7 +14,7 @@ from .response_summarizer import ResponseSummarizer
 
 
 class AiIterativeSessionRunner:
-    """Dieu phoi 1 session AI test: baseline -> payload -> response -> AI verdict."""
+    """Dieu phoi 1 session AI test: baseline -> payload -> response."""
 
     def __init__(
         self,
@@ -68,12 +68,12 @@ class AiIterativeSessionRunner:
 
             response = self._send_request(target, marker, decision.payload)
             self._verify_xss_if_needed(decision, response, marker)
-            verdict = self.ai.verdict(target, marker, decision, response, previous_rounds)
+            verdict = self._verdict_when_needed(target, marker, decision, response, previous_rounds)
 
-            round_item = self._round_item(round_number, decision, payload_check.reason, response, verdict.to_dict())
+            round_item = self._round_item(round_number, decision, payload_check.reason, response, verdict)
             session["rounds"].append(round_item)
             previous_rounds.append(round_item)
-            self._save_observations(session, round_number, decision, response, verdict.to_dict())
+            self._save_observations(session, round_number, decision, response, verdict)
             self._emit_table_row(
                 target,
                 index,
@@ -81,11 +81,11 @@ class AiIterativeSessionRunner:
                 round_number,
                 decision,
                 response.get("status", "-"),
-                verdict.status == "confirmed",
-                f"ai:{verdict.status} | {self._comment(response.get('signals', {}))}",
+                verdict.get("status") == "confirmed",
+                f"{verdict.get('source', 'local')}:{verdict.get('status')} | {self._comment(response.get('signals', {}))}",
             )
 
-            if verdict.status == "confirmed":
+            if verdict.get("status") == "confirmed":
                 break
 
         return session
@@ -207,6 +207,44 @@ class AiIterativeSessionRunner:
         if result.executed:
             signals["objective_proof"] = True
             signals["objective_proof_type"] = "xss_alert"
+
+    def _verdict_when_needed(
+        self,
+        target: FuzzTarget,
+        marker: str,
+        decision: AiPayloadDecision,
+        response: dict,
+        previous_rounds: list[dict],
+    ) -> dict:
+        if self._has_interesting_signal(response):
+            return self.ai.verdict(target, marker, decision, response, previous_rounds).to_dict()
+
+        return {
+            "status": "no_issue",
+            "vuln_type": "none",
+            "confidence": "low",
+            "reason": "Khong co signal dang chu y, bo qua AI verdict de tang toc.",
+            "next_step": "AI se doc response nay o round tiep theo neu con vong.",
+            "source": "local",
+        }
+
+    def _has_interesting_signal(self, response: dict) -> bool:
+        signals = response.get("signals", {})
+        interesting_keys = [
+            "objective_proof",
+            "candidate_signal",
+            "sql_error_confirmed",
+            "xss_reflection",
+            "xss_executed",
+            "union_marker_in_output",
+            "marker_in_html",
+            "xss_browser_error",
+        ]
+        if any(signals.get(key) for key in interesting_keys):
+            return True
+
+        list_signals = ["sql_error_patterns", "visible_columns", "matched_paths"]
+        return any(bool(signals.get(key)) for key in list_signals)
 
     def _comment(self, signals: dict) -> str:
         if signals.get("objective_proof_type") == "union_marker":

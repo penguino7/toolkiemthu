@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+from html import unescape
+
 from fuzztool.models import HttpExchange
 
 from .detectors import AiTestDetectors
@@ -21,7 +24,8 @@ class ResponseSummarizer:
     def summarize(self, exchange: HttpExchange, marker: str) -> dict:
         content_type = exchange.headers.get("content-type", "")
         text = exchange.text or ""
-        compact = self.detector.compact_text(text)
+        ai_text = self._text_for_ai(text, content_type)
+        compact = self.detector.compact_text(ai_text)
         signals = self.detector.detect(exchange, marker)
 
         return {
@@ -46,6 +50,11 @@ class ResponseSummarizer:
             "signal_windows": self._signal_windows(text, marker, signals),
         }
 
+        if self._is_html(content_type):
+            context["mode"] = "html_text"
+            context["html_text"] = compact[: self.raw_head_chars + self.raw_tail_chars]
+            return context
+
         if self._should_send_full_raw(text, content_type):
             context["mode"] = "full"
             context["raw_response"] = text
@@ -54,6 +63,20 @@ class ResponseSummarizer:
         context["raw_head"] = text[: self.raw_head_chars]
         context["raw_tail"] = text[-self.raw_tail_chars :] if self.raw_tail_chars > 0 else ""
         return context
+
+    def _text_for_ai(self, text: str, content_type: str) -> str:
+        if not self._is_html(content_type):
+            return text
+
+        cleaned = re.sub(r"(?is)<(script|style|noscript|template|svg)\b.*?</\1>", " ", text)
+        cleaned = re.sub(r"(?is)<!--.*?-->", " ", cleaned)
+        cleaned = re.sub(r"(?is)<br\s*/?>", "\n", cleaned)
+        cleaned = re.sub(r"(?is)</(p|div|li|tr|h[1-6]|section|article|header|footer|form)>", "\n", cleaned)
+        cleaned = re.sub(r"(?is)<[^>]+>", " ", cleaned)
+        return unescape(cleaned)
+
+    def _is_html(self, content_type: str) -> bool:
+        return "html" in (content_type or "").lower()
 
     def _should_send_full_raw(self, text: str, content_type: str) -> bool:
         length = len(text)

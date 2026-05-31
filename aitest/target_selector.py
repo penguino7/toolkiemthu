@@ -7,7 +7,7 @@ from fuzztool.models import FuzzTarget
 
 
 class AiTestTargetSelector:
-    """Chon nhanh 3 target SQLi va 3 target XSS tu inventory."""
+    """Chon nhanh mot nua target SQLi va mot nua target XSS tu inventory."""
 
     SQLI_NAMES = {"id", "news_id", "category_id", "user_id", "article_id"}
     XSS_NAMES = {"q", "keyword", "search", "content", "comment", "author_name", "username", "bio"}
@@ -19,8 +19,11 @@ class AiTestTargetSelector:
         targets = InventoryLoader(self.config).targets_for(inventory_path)
         targets = self._remove_duplicate_targets(targets)
 
-        sqli_targets = self._pick_targets(targets, focus="sqli", limit=3)
-        xss_targets = self._pick_targets(targets, focus="xss", limit=3)
+        sqli_limit = max_targets // 2
+        xss_limit = max_targets - sqli_limit
+
+        sqli_targets = self._pick_targets(targets, focus="sqli", limit=sqli_limit)
+        xss_targets = self._pick_targets(targets, focus="xss", limit=xss_limit)
 
         selected = [*sqli_targets, *xss_targets]
         return selected[:max_targets]
