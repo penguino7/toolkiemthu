@@ -1,7 +1,7 @@
 {
   "provider": {
     "name": "openai_compatible",
-    "base_url": "https://ravavct.abc-tunnel.us/v1",
+    "base_url": "https://9router.sangnx.io.vn/v1",
     "model": "gh/gpt-5-mini",
     "api_key_env": "AI_API_KEY",
     "env_file": ".env",

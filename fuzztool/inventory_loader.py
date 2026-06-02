@@ -28,7 +28,7 @@ class InventoryLoader:
 
         targets: List[FuzzTarget] = []
         for record in records:
-            record_url = self._record_url(record)
+            record_url = self._record_url(record) 
             fuzz_url = self._url_for_fuzz(record_url)
             if not self.scope.allows(fuzz_url):
                 continue
