@@ -17,6 +17,7 @@ def build_payload_prompt(target: FuzzTarget, marker: str, baseline: dict, previo
             "Do not use destructive payloads: DROP, DELETE, UPDATE, INSERT, OUTFILE, LOAD_FILE, or RCE.",
             "Generate exactly one short, purposeful payload per round. The payload must fit the target parameter.",
             "Base the payload on baseline, previous_rounds, response_context, and previous ai_verdict values.",
+            "Review recommended_next_step from the previous verdict before choosing the next payload. Treat it as guidance, then verify that it still matches the latest response evidence.",
             "Keep the assigned target.test_focus. For focus=sqli, return only an sqli_* attack type. For focus=xss, return only xss_reflection or stop. Never switch vulnerability groups.",
             "Do not follow a fixed sequence. Choose a quote probe, boolean condition, ORDER BY, UNION, or XSS payload according to the latest response.",
             "Do not treat a standalone SQL error as proof of successful exploitation.",
@@ -42,6 +43,7 @@ def build_payload_prompt(target: FuzzTarget, marker: str, baseline: dict, previo
         "target": _target_dict(target),
         "current_state": _state_summary(previous_rounds),
         "session_memory": _session_memory(previous_rounds),
+        "recommended_next_step": _recommended_next_step(previous_rounds),
         "baseline": _short_response(baseline),
         "previous_rounds": _short_rounds(previous_rounds[-3:]),
     }
@@ -139,6 +141,13 @@ def _session_memory(rounds: list[dict]) -> dict:
         "important_observations": observations[-6:],
         "last_suggested_next_step": last.get("ai_verdict", {}).get("next_step", ""),
     }
+
+
+def _recommended_next_step(rounds: list[dict]) -> str:
+    """Expose the latest AI recommendation clearly for the next round."""
+    if not rounds:
+        return ""
+    return str(rounds[-1].get("ai_verdict", {}).get("next_step", ""))
 
 
 def _short_rounds(rounds: list[dict]) -> list[dict]:
