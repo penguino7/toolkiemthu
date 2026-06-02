@@ -77,7 +77,8 @@ class AiDecisionEngine:
         try:
             prompt = build_verdict_prompt(target, marker, decision.__dict__, response, previous_rounds)
             raw = self.ai_api.complete([ChatMessage(role="user", content=prompt)])
-            return self._parse_verdict(raw)
+            verdict = self._parse_verdict(raw)
+            return self._validate_verdict_focus(target, verdict)
         except Exception as error:
             return AiEvidenceVerdict(
                 status="unknown",
@@ -134,3 +135,24 @@ class AiDecisionEngine:
             raise ValueError(f"target XSS nhung AI tra attack_type={decision.attack_type}")
         if focus == "sqli" and not decision.attack_type.startswith("sqli"):
             raise ValueError(f"target SQLi nhung AI tra attack_type={decision.attack_type}")
+
+    def _validate_verdict_focus(self, target: FuzzTarget, verdict: AiEvidenceVerdict) -> AiEvidenceVerdict:
+        """Không nhận verdict trái với nhóm lỗ hổng đang kiểm thử."""
+        focus = getattr(target, "aitest_focus", "auto")
+        wrong_group = (focus == "xss" and verdict.vuln_type == "sqli") or (
+            focus == "sqli" and verdict.vuln_type == "xss"
+        )
+        if not wrong_group:
+            return verdict
+
+        return AiEvidenceVerdict(
+            status="suspicious",
+            vuln_type="none",
+            confidence="low",
+            reason=(
+                f"AI trả verdict {verdict.vuln_type} trong khi target đang kiểm thử {focus}. "
+                "Chương trình chỉ giữ đây là tín hiệu phụ và không dùng làm kết luận."
+            ),
+            next_step=f"Tiếp tục kiểm thử đúng nhóm {focus} hoặc dừng target nếu không còn payload phù hợp.",
+            source="ai_scope_guard",
+        )
