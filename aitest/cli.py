@@ -19,8 +19,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-url", default="http://127.0.0.1:12001", help="Base URL của lab")
     parser.add_argument("--ai-config", default="ai.config.example.json", help="File config AI")
     parser.add_argument("--out", default="aitest-output", help="Thư mục output")
-    parser.add_argument("--max-targets", type=int, default=4, help="Số target tối đa")
-    parser.add_argument("--rounds", type=int, default=3, help="Số vòng AI cho mỗi target")
+    parser.add_argument("--max-targets", type=int, default=2, help="Số target tối đa")
+    parser.add_argument("--rounds", type=int, default=5, help="Số vòng AI cho mỗi target")
     parser.add_argument("--max-requests", type=int, default=80, help="Giới hạn request")
     return parser
 
