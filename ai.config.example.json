@@ -2,7 +2,7 @@
   "provider": {
     "name": "openai_compatible",
     "base_url": "https://9router.sangnx.io.vn/v1",
-    "model": "gh/gpt-5-mini",
+    "model": "gc/gemini-3-pro-preview",
     "api_key_env": "AI_API_KEY",
     "env_file": ".env",
     "auth_header": "Authorization",
