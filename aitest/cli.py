@@ -14,7 +14,7 @@ from .target_selector import AiTestTargetSelector
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="AI-assisted iterative payload tester")
+    parser = argparse.ArgumentParser(description="AI-assisted iterative SQL injection tester")
     parser.add_argument("inventory", help="Đường dẫn recon-output/inventory.json")
     parser.add_argument("--base-url", default="http://127.0.0.1:12001", help="Base URL của lab")
     parser.add_argument("--ai-config", default="ai.config.example.json", help="File config AI")
@@ -132,7 +132,7 @@ class AiTestTablePrinter:
 
     def __init__(self) -> None:
         self.count = 0
-        self.table = ConsoleTable("AI ITERATIVE TEST LIVE TABLE", self.COLUMNS)
+        self.table = ConsoleTable("AI SQLI ITERATIVE TEST LIVE TABLE", self.COLUMNS)
 
     def start(self) -> None:
         self.table.start()

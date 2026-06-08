@@ -103,7 +103,7 @@ class AiDecisionEngine:
         data = self._extract_json(raw_text)
         return AiEvidenceVerdict(
             status=self._safe_choice(data.get("status"), {"no_issue", "suspicious", "confirmed"}, "suspicious"),
-            vuln_type=self._safe_choice(data.get("vuln_type"), {"none", "sqli", "xss"}, "none"),
+            vuln_type=self._safe_choice(data.get("vuln_type"), {"none", "sqli"}, "none"),
             confidence=self._safe_choice(data.get("confidence"), {"low", "medium", "high"}, "low"),
             reason=str(data.get("reason", "")),
             next_step=str(data.get("next_step", "")),
@@ -130,29 +130,19 @@ class AiDecisionEngine:
         if decision.stop:
             return
 
-        focus = getattr(target, "aitest_focus", "auto")
-        if focus == "xss" and not decision.attack_type.startswith("xss"):
-            raise ValueError(f"target XSS nhung AI tra attack_type={decision.attack_type}")
-        if focus == "sqli" and not decision.attack_type.startswith("sqli"):
-            raise ValueError(f"target SQLi nhung AI tra attack_type={decision.attack_type}")
+        if not decision.attack_type.startswith("sqli"):
+            raise ValueError(f"AI must return an sqli_* attack_type, got {decision.attack_type}")
 
     def _validate_verdict_focus(self, target: FuzzTarget, verdict: AiEvidenceVerdict) -> AiEvidenceVerdict:
-        """Không nhận verdict trái với nhóm lỗ hổng đang kiểm thử."""
-        focus = getattr(target, "aitest_focus", "auto")
-        wrong_group = (focus == "xss" and verdict.vuln_type == "sqli") or (
-            focus == "sqli" and verdict.vuln_type == "xss"
-        )
-        if not wrong_group:
+        """Chi nhan verdict SQLi trong module AI hien tai."""
+        if verdict.vuln_type in {"none", "sqli"}:
             return verdict
 
         return AiEvidenceVerdict(
             status="suspicious",
             vuln_type="none",
             confidence="low",
-            reason=(
-                f"AI trả verdict {verdict.vuln_type} trong khi target đang kiểm thử {focus}. "
-                "Chương trình chỉ giữ đây là tín hiệu phụ và không dùng làm kết luận."
-            ),
-            next_step=f"Tiếp tục kiểm thử đúng nhóm {focus} hoặc dừng target nếu không còn payload phù hợp.",
+            reason=f"AI returned unsupported vuln_type={verdict.vuln_type}; only SQLi verdicts are accepted.",
+            next_step="Continue SQLi testing or stop this target if no safe SQLi payload remains.",
             source="ai_scope_guard",
         )

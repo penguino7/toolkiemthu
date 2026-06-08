@@ -1,11 +1,11 @@
 # AITest
 
-`aitest` là module AI-assisted exploit proof cho lab XSS/SQLi. Module này tách riêng khỏi `fuzztool`, không ghi vào `fuzz-output/findings.json`.
+`aitest` là module AI-assisted SQL Injection testing cho lab được phép kiểm thử. Module này tách riêng khỏi `fuzztool`, không ghi vào `fuzz-output/findings.json`.
 
-Mục tiêu của module không phải lấy dữ liệu thật, mà là tạo bằng chứng khai thác an toàn:
+Mục tiêu của module không phải lấy dữ liệu thật, mà là thử nghiệm khả năng AI đọc response và đề xuất payload SQLi theo nhiều vòng:
 
 - SQLi: đi từ SQL error -> ORDER BY/UNION -> marker xuất hiện trong dữ liệu thật hoặc HTML.
-- XSS: payload được phản chiếu -> Playwright mở trình duyệt -> alert/dialog chứa marker.
+- XSS không chạy trong `aitest`; nhóm này được fuzztool kiểm thử và xác minh bằng Playwright.
 
 ## Luồng chính
 
@@ -24,7 +24,7 @@ inventory.json
 -> xuất aitest-output/sessions.json
 ```
 
-Payload trong luồng chính chỉ do AI sinh dựa trên ngữ cảnh từng vòng. Tool không có payload fallback. Nếu API lỗi, AI trả JSON sai hoặc trả sai nhóm XSS/SQLi thì target sẽ dừng và ghi `ai_error`.
+Payload trong luồng chính chỉ do AI sinh dựa trên ngữ cảnh từng vòng. Tool không có payload fallback. Nếu API lỗi, AI trả JSON sai hoặc trả payload không thuộc SQLi thì target sẽ dừng và ghi `ai_error`.
 
 ## Response context gửi cho AI
 
@@ -55,8 +55,6 @@ Detector không tự kết luận lỗ hổng. Nó chỉ tách evidence để AI
 {
   "sql_error_confirmed": true,
   "union_marker_in_output": false,
-  "xss_reflection": false,
-  "xss_executed": false,
   "objective_proof": false
 }
 ```
@@ -66,7 +64,7 @@ Sau mỗi payload, AI đọc `response_context` và signals để trả verdict:
 ```json
 {
   "status": "no_issue|suspicious|confirmed",
-  "vuln_type": "none|sqli|xss",
+  "vuln_type": "none|sqli",
   "confidence": "low|medium|high",
   "reason": "giải thích ngắn gọn",
   "next_step": "hướng test tiếp nếu chưa confirmed"
@@ -76,8 +74,6 @@ Sau mỗi payload, AI đọc `response_context` và signals để trả verdict:
 `sql_error_confirmed=true` chỉ là tín hiệu nghi vấn. Module chỉ nên coi là confirmed khi AI thấy đủ bằng chứng, ví dụ:
 
 - UNION marker xuất hiện trong dữ liệu thật hoặc HTML, không chỉ nằm trong debug SQL.
-- XSS được Playwright xác nhận alert/dialog chứa marker.
-
 ## Chạy
 
 ```bash
@@ -87,7 +83,7 @@ bash run_tool.sh
 Sau đó chọn:
 
 ```text
-5. Chạy AI exploit proof
+5. Chạy AI SQLi test
 ```
 
 Output:
@@ -101,4 +97,4 @@ aitest-output/sessions.json
 - AI không gửi request trực tiếp.
 - Tool luôn kiểm tra payload bằng `PayloadGuard` trước khi gửi.
 - Payload phá hoại như `DROP`, `DELETE`, `UPDATE`, `INSERT`, `OUTFILE`, `LOAD_FILE`, `curl`, `wget` sẽ bị chặn.
-- Module chỉ tạo proof bằng marker/alert, không tự động trích xuất dữ liệu thật.
+- Module chỉ tạo proof bằng marker trong response, không tự động trích xuất dữ liệu thật.

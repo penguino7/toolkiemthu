@@ -7,10 +7,21 @@ from fuzztool.models import FuzzTarget
 
 
 class AiTestTargetSelector:
-    """Chon nhanh mot nua target SQLi va mot nua target XSS tu inventory."""
+    """Chon cac target phu hop de AI kiem thu SQL Injection."""
 
-    SQLI_NAMES = {"id", "news_id", "category_id", "user_id", "article_id"}
-    XSS_NAMES = {"q", "keyword", "search", "content", "comment", "author_name", "username", "bio"}
+    SQLI_NAMES = {
+        "id",
+        "news_id",
+        "category_id",
+        "user_id",
+        "article_id",
+        "q",
+        "query",
+        "keyword",
+        "author",
+        "sort",
+        "search",
+    }
 
     def __init__(self, config: dict) -> None:
         self.config = config
@@ -18,15 +29,7 @@ class AiTestTargetSelector:
     def select(self, inventory_path: str, max_targets: int) -> List[FuzzTarget]:
         targets = InventoryLoader(self.config).targets_for(inventory_path)
         targets = self._remove_duplicate_targets(targets)
-
-        sqli_limit = max_targets // 2
-        xss_limit = max_targets - sqli_limit
-
-        sqli_targets = self._pick_targets(targets, focus="sqli", limit=sqli_limit)
-        xss_targets = self._pick_targets(targets, focus="xss", limit=xss_limit)
-
-        selected = [*sqli_targets, *xss_targets]
-        return selected[:max_targets]
+        return self._pick_sqli_targets(targets, max_targets)
 
     def _remove_duplicate_targets(self, targets: List[FuzzTarget]) -> List[FuzzTarget]:
         seen = set()
@@ -38,26 +41,24 @@ class AiTestTargetSelector:
             result.append(target)
         return result
 
-    def _pick_targets(self, targets: List[FuzzTarget], focus: str, limit: int) -> List[FuzzTarget]:
+    def _pick_sqli_targets(self, targets: List[FuzzTarget], limit: int) -> List[FuzzTarget]:
         result = []
-        for target in targets:
-            if focus == "sqli" and not self._is_sqli_target(target):
+        for target in sorted(targets, key=self._sqli_priority):
+            if not self._is_sqli_target(target):
                 continue
-            if focus == "xss" and not self._is_xss_target(target):
-                continue
-
-            target.aitest_focus = focus
+            target.aitest_focus = "sqli"
             result.append(target)
-
             if len(result) == limit:
                 break
-
         return result
 
     def _is_sqli_target(self, target: FuzzTarget) -> bool:
         name = target.param_name.lower()
         return target.type_hint in {"int", "float"} or name in self.SQLI_NAMES or name.endswith("_id")
 
-    def _is_xss_target(self, target: FuzzTarget) -> bool:
+    def _sqli_priority(self, target: FuzzTarget) -> tuple[int, str]:
+        """Uu tien tham so so/id truoc vi thuong on dinh hon khi test SQLi."""
         name = target.param_name.lower()
-        return target.type_hint == "string" and name in self.XSS_NAMES
+        if target.type_hint in {"int", "float"} or name.endswith("_id") or name == "id":
+            return (0, target.key)
+        return (1, target.key)

@@ -75,7 +75,7 @@ class ToolCliMenu:
         print("2. Chạy fuzz XSS")
         print("3. Chạy fuzz SQLi")
         print("4. Chạy fuzz XSS + SQLi")
-        print("5. Chạy AI exploit proof")
+        print("5. Chạy AI SQLi test")
         print("6. Cài đặt recon/fuzz")
         print("7. Cài đặt AI")
         print("8. Kiểm tra AI provider/API key")
@@ -116,7 +116,7 @@ class ToolCliMenu:
             "--rounds",
             self.state.aitest_rounds,
         ]
-        self.runner.run_python_module("ai-iterative-test", "aitest", args)
+        self.runner.run_python_module("ai-sqli-test", "aitest", args)
 
     def test_ai_provider(self) -> None:
         args = [

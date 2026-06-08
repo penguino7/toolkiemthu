@@ -6,7 +6,6 @@ from uuid import uuid4
 from fuzztool.http_client import FuzzHttpClient, RequestBudgetExceeded
 from fuzztool.models import FuzzTarget
 from fuzztool.mutator import RequestMutator
-from fuzztool.xss_scanner import BrowserXssVerifier
 
 from .ai_decision import AiDecisionEngine, AiPayloadDecision
 from .payload_guard import PayloadGuard
@@ -64,7 +63,6 @@ class AiIterativeSessionRunner:
                 break
 
             response = self._send_request(target, marker, decision.payload)
-            self._verify_xss_if_needed(decision, response, marker)
             verdict = self._verdict_when_needed(target, marker, decision, response, previous_rounds)
 
             round_item = self._round_item(round_number, decision, payload_check.reason, response, verdict)
@@ -185,26 +183,6 @@ class AiIterativeSessionRunner:
         except RequestBudgetExceeded as error:
             return {"status": 0, "error": str(error), "signals": {"candidate_signal": False, "objective_proof": False}}
 
-    def _verify_xss_if_needed(self, decision: AiPayloadDecision, response: dict, marker: str) -> None:
-        signals = response.get("signals", {})
-        if not decision.attack_type.startswith("xss") or not signals.get("xss_reflection"):
-            return
-
-        try:
-            with BrowserXssVerifier(self.tool_config) as verifier:
-                result = verifier.verify_url(str(response.get("url", "")), marker)
-        except Exception as error:
-            signals["xss_browser_error"] = str(error)
-            return
-
-        signals["xss_executed"] = bool(result.executed)
-        signals["xss_rendered"] = bool(result.rendered)
-        signals["xss_dialog_messages"] = result.dialog_messages
-        signals["xss_browser_error"] = result.error
-        if result.executed:
-            signals["objective_proof"] = True
-            signals["objective_proof_type"] = "xss_alert"
-
     def _verdict_when_needed(
         self,
         target: FuzzTarget,
@@ -213,52 +191,18 @@ class AiIterativeSessionRunner:
         response: dict,
         previous_rounds: list[dict],
     ) -> dict:
-        if self._has_interesting_signal(response):
-            return self.ai.verdict(target, marker, decision, response, previous_rounds).to_dict()
-
-        return {
-            "status": "not_reviewed",
-            "vuln_type": "none",
-            "confidence": "low",
-            "reason": "Khong co signal dang chu y, chua goi AI verdict de tang toc.",
-            "next_step": "AI se doc response nay o round tiep theo neu con vong.",
-            "source": "local",
-        }
-
-    def _has_interesting_signal(self, response: dict) -> bool:
-        signals = response.get("signals", {})
-        interesting_keys = [
-            "objective_proof",
-            "candidate_signal",
-            "sql_error_confirmed",
-            "xss_reflection",
-            "xss_executed",
-            "union_marker_in_output",
-            "marker_in_html",
-            "xss_browser_error",
-        ]
-        if any(signals.get(key) for key in interesting_keys):
-            return True
-
-        list_signals = ["sql_error_patterns", "visible_columns", "matched_paths"]
-        return any(bool(signals.get(key)) for key in list_signals)
+        return self.ai.verdict(target, marker, decision, response, previous_rounds).to_dict()
 
     def _comment(self, signals: dict) -> str:
         if signals.get("objective_proof_type") == "union_marker":
             columns = ",".join(signals.get("visible_columns", [])) or "-"
             return f"proof:union columns={columns}"
-        if signals.get("objective_proof_type") == "xss_alert":
-            return "proof:xss alert executed"
         if signals.get("sql_error_patterns"):
             return "probe_sql_error:" + ",".join(signals["sql_error_patterns"][:2])
         if signals.get("visible_columns"):
             return "union_visible:C" + ",C".join(signals["visible_columns"][:8])
         if signals.get("matched_paths"):
             return "marker_json:" + ",".join(signals["matched_paths"][:3])
-        if signals.get("xss_reflection"):
-            return "xss_reflected_no_alert"
-        if signals.get("xss_browser_error"):
-            return "xss_browser_error"
         if signals.get("marker_in_html"):
             return "marker_rendered_html"
         return "no_signal"
