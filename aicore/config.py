@@ -26,6 +26,12 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "max_payload_chars": 500,
         "max_detail_chars": 1200,
     },
+    "rate_limit": {
+        "delay_seconds": 0.0,
+        "retry_on_429": True,
+        "retry_times": 0,
+        "retry_delay_seconds": 15.0,
+    },
     "redaction": {
         "enabled": True,
         "sensitive_keys": [
