@@ -2,7 +2,7 @@
   "provider": {
     "name": "openai_compatible",
     "base_url": "https://9router.sangnx.io.vn/v1",
-    "model": "gc/gemini-3-pro-preview",
+    "model": "gh/gpt-5-mini",
     "api_key_env": "AI_API_KEY",
     "env_file": ".env",
     "auth_header": "Authorization",
@@ -19,12 +19,6 @@
     "max_findings": 50,
     "max_payload_chars": 500,
     "max_detail_chars": 1200
-  },
-  "rate_limit": {
-    "delay_seconds": 2.0,
-    "retry_on_429": true,
-    "retry_times": 2,
-    "retry_delay_seconds": 15.0
   },
   "aitest": {
     "full_raw_under_chars": 4000,
